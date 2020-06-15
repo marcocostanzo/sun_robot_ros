@@ -10,6 +10,7 @@ project(sun_robot_msgs)
 find_package(catkin REQUIRED
 message_generation
 genmsg actionlib_msgs
+trajectory_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -62,12 +63,14 @@ add_service_files(
 add_action_files(
   FILES
   MicroJointTraj.action
+  JointTrajectory.action
 )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   actionlib_msgs 
+  trajectory_msgs
 )
 
 ################################################
@@ -102,7 +105,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sun_robot_msgs
- CATKIN_DEPENDS message_runtime
+ CATKIN_DEPENDS message_runtime trajectory_msgs actionlib_msgs
 #  DEPENDS system_lib
 )
 

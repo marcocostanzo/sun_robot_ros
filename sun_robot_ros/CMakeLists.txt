@@ -208,8 +208,17 @@ add_library(${PROJECT_NAME}
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(micro_joint_traj src/micro_joint_traj_node.cpp)
-add_dependencies(micro_joint_traj ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(micro_joint_traj
+#############################################################
+add_executable(micro_joint_traj_server src/micro_joint_traj_server_node.cpp)
+add_dependencies(micro_joint_traj_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(micro_joint_traj_server
   ${catkin_LIBRARIES}
 )
+#############################################################
+#############################################################
+add_executable(joint_trajectory_server src/joint_trajectory_server_node.cpp)
+add_dependencies(joint_trajectory_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(joint_trajectory_server
+  ${catkin_LIBRARIES}
+)
+#############################################################
