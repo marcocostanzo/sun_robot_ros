@@ -28,14 +28,14 @@ namespace sun{
             const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn
             )
     :
-    robot_( &robot ),
+    robot_( robot ),
     nh_(nh_for_topics),
     get_joint_position_fcn_(get_joint_position_fcn),
     joint_publish_fcn_(joint_publish_fcn),
-    jointDH_target_second_obj_(TooN::Zeros(robot_->getNumJoints())),
-    joint_weights_second_obj_(TooN::Zeros(robot_->getNumJoints())),
+    jointDH_target_second_obj_(TooN::Zeros(robot_.getNumJoints())),
+    joint_weights_second_obj_(TooN::Zeros(robot_.getNumJoints())),
     cartesian_mask_(TooN::Ones),
-    qDH_k_( TooN::Zeros(robot_->getNumJoints()) ),
+    qDH_k_( TooN::Zeros(robot_.getNumJoints()) ),
     mode_(sun_robot_msgs::ClikSetMode::Request::MODE_STOP)
     {
         //params
@@ -50,24 +50,24 @@ namespace sun{
         
         double dls_joint_speed_saturation;
         nh_for_parmas.param("dls_joint_speed_saturation" , dls_joint_speed_saturation, 5.0 );
-        robot_->setDLSJointSpeedSaturation(dls_joint_speed_saturation);
+        robot_.setDLSJointSpeedSaturation(dls_joint_speed_saturation);
         nh_for_parmas.param("second_obj_gain" , second_obj_gain_, 0.0 );
 
         //joint_target_robot_second_obj
         {
-        for(int i=0; i<robot_->getNumJoints(); i++)
+        for(int i=0; i<robot_.getNumJoints(); i++)
         {
             jointDH_target_second_obj_[i] = 
-            (robot_->getLink(i)->getSoftJointLimits()[1] + robot_->getLink(i)->getSoftJointLimits()[0])/2.0 ;
+            (robot_.getLink(i)->getSoftJointLimits()[1] + robot_.getLink(i)->getSoftJointLimits()[0])/2.0 ;
         }
         jointDH_target_second_obj_ = 
             getVectorFromParam(
                 nh_for_parmas, 
                 "joint_target_robot_second_obj", 
-                robot_->getNumJoints(), 
+                robot_.getNumJoints(), 
                 jointDH_target_second_obj_
             );
-        jointDH_target_second_obj_ = robot_->joints_Robot2DH(jointDH_target_second_obj_);
+        jointDH_target_second_obj_ = robot_.joints_Robot2DH(jointDH_target_second_obj_);
         }
         ROS_INFO_STREAM( ros::this_node::getName() << " CLIK Target conf (DH): " << jointDH_target_second_obj_);
 
@@ -76,8 +76,8 @@ namespace sun{
             getVectorFromParam(
                 nh_for_parmas, 
                 "joint_weights_second_obj", 
-                robot_->getNumJoints(), 
-                TooN::Ones(robot_->getNumJoints())
+                robot_.getNumJoints(), 
+                TooN::Ones(robot_.getNumJoints())
             );
 
         //cartesian_mask
@@ -85,8 +85,8 @@ namespace sun{
             getVectorFromParam(
                 nh_for_parmas, 
                 "cartesian_mask", 
-                robot_->getNumJoints(), 
-                TooN::Ones(robot_->getNumJoints())
+                robot_.getNumJoints(), 
+                TooN::Ones(robot_.getNumJoints())
             );
 
         //n_T_e
@@ -108,7 +108,7 @@ namespace sun{
         UnitQuaternion n_T_e_quaternion(n_T_e_quat_v);
         TooN::Matrix<4,4> n_T_e = transl(n_T_e_position);
         n_T_e.slice<0,0,3,3>() = n_T_e_quaternion.torot();
-        robot_->setnTe(n_T_e);
+        robot_.setnTe(n_T_e);
         }
         
     }
@@ -117,7 +117,7 @@ namespace sun{
 
 void clikNode::refresh_cartesian_pose()
 {
-    TooN::Matrix<4,4> b_T_e = robot_->fkine(qDH_k_);
+    TooN::Matrix<4,4> b_T_e = robot_.fkine(qDH_k_);
     pd_k_ = transl(b_T_e);
     quat_d_k_ = UnitQuaternion(b_T_e);
     quat_k_1 = quat_d_k_;
@@ -129,7 +129,7 @@ void clikNode::refresh()
     //Wait for initial configuration
     ROS_INFO_STREAM( ros::this_node::getName() << " CLIK refresh()");
     ROS_INFO_STREAM( ros::this_node::getName() << " CLIK Wait for joint positions...");
-    qDH_k_ = robot_->joints_Robot2DH( get_joint_position_fcn_() );
+    qDH_k_ = robot_.joints_Robot2DH( get_joint_position_fcn_() );
     ROS_INFO_STREAM( ros::this_node::getName() << " CLIK Joint positions: " << qDH_k_);
     //Initialize vars
     refresh_cartesian_pose();
@@ -254,10 +254,10 @@ void clikNode::clik_core(
     )
 {
 
-    TooN::Vector<> dqDH_k = TooN::Zeros(robot_->getNumJoints());
+    TooN::Vector<> dqDH_k = TooN::Zeros(robot_.getNumJoints());
     
     qDH_k_ = //<- qDH at time k+1
-        robot_->clik(   
+        robot_.clik(   
             qDH_k_, //<- qDH now, time k
             pd_k, // <- desired position
             quat_d_k, // <- desired quaternion
@@ -276,8 +276,8 @@ void clikNode::clik_core(
             quat_k_1 // <- Quaternion at time k (usefull for continuity in the next call of these function)
     );
 
-    TooN::Vector<> qR = robot_->joints_DH2Robot( qDH_k_ );
-    TooN::Vector<> dqR = robot_->jointsvel_DH2Robot( dqDH_k );
+    TooN::Vector<> qR = robot_.joints_DH2Robot( qDH_k_ );
+    TooN::Vector<> dqR = robot_.jointsvel_DH2Robot( dqDH_k );
 
     safety_check(qR, dqR);
 
@@ -289,17 +289,17 @@ void clikNode::safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR)
 {
 
     //check limits
-    if( robot_->exceededHardJointLimits( qR ) )
+    if( robot_.exceededHardJointLimits( qR ) )
     {
         ROS_ERROR_STREAM( ros::this_node::getName() << " CLIK ERROR ROBOT JOINT LIMITS!! On joints:" <<
-                robot_->jointsNameFromBitMask( robot_->checkHardJointLimits(qR) ) );
+                robot_.jointsNameFromBitMask( robot_.checkHardJointLimits(qR) ) );
         throw robot_joint_position_limits("exceededHardJointLimits");
     }
 
-    if( robot_->exceededHardVelocityLimits( dqR ) )
+    if( robot_.exceededHardVelocityLimits( dqR ) )
     {
         ROS_ERROR_STREAM( ros::this_node::getName() << " CLIK ERROR ROBOT Velocity!! On joints:" <<
-                robot_->jointsNameFromBitMask( robot_->checkHardVelocityLimits( dqR ) ) );
+                robot_.jointsNameFromBitMask( robot_.checkHardVelocityLimits( dqR ) ) );
         throw robot_joint_position_limits("exceededHardJointLimits");
     }
 

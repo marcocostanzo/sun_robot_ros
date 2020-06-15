@@ -35,7 +35,7 @@ class clikNode
 private:
     
     //! Robot object
-    std::shared_ptr<Robot> robot_;
+    Robot& robot_;
 
     //! state
     int mode_;
