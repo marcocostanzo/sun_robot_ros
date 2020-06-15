@@ -12,6 +12,8 @@ roscpp
 sun_robot_lib
 sun_ros_msgs
 sun_robot_msgs
+sun_traj_lib
+actionlib
 )
 
 ## System dependencies are found with CMake's conventions
@@ -205,3 +207,9 @@ add_library(${PROJECT_NAME}
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+add_executable(micro_joint_traj src/micro_joint_traj_node.cpp)
+add_dependencies(micro_joint_traj ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(micro_joint_traj
+  ${catkin_LIBRARIES}
+)

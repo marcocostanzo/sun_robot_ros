@@ -9,6 +9,7 @@ project(sun_robot_msgs)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED
 message_generation
+genmsg actionlib_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -58,16 +59,15 @@ add_service_files(
 )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(
+  FILES
+  MicroJointTraj.action
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-#  std_msgs  # Or other packages containing msgs
+  actionlib_msgs 
 )
 
 ################################################

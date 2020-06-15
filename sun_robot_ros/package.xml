@@ -54,6 +54,8 @@
   <depend>sun_robot_lib</depend>
   <depend>sun_ros_msgs</depend>
   <depend>sun_robot_msgs</depend>
+  <depend>sun_traj_lib</depend>
+  <depend>actionlib</depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->
