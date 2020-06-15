@@ -1,0 +1,47 @@
+<launch>
+
+    <arg name="desired_pose_topic" default="clik/desired_pose"/>
+    <arg name="desired_twist_topic" default="clik/desired_twist"/>
+    <arg name="cartesian_error_topic" default="clik/cartesian_error"/>
+    <arg name="set_mode_service" default="clik/set_mode"/>
+  
+    <arg name="rate" default="1000.0"/>
+
+    <arg name="error_gain" default="0.5"/>    
+
+    <arg name="dls_joint_speed_saturation" default="5.0"/>  
+
+    <arg name="second_obj_gain" default="0.0"/> 
+    <arg name="joint_target_robot_second_obj" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+    <arg name="joint_weights_second_obj" default="[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"/>
+
+    <arg name="cartesian_mask" default="[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"/>
+
+    <arg name="n_T_e_position" default="[0.0, 0.0, 0.1]"/>
+    <arg name="n_T_e_quaternion" default="[1.0, 0.0, 0.0, 0.0]"/>
+
+    <node name="robot_clik"  pkg="my_robot_pkg" type="robot_clik" output="screen">
+
+        <param name="desired_pose_topic" value="$(arg desired_pose_topic)"/>
+        <param name="desired_twist_topic" value="$(arg desired_twist_topic)"/>
+        <param name="cartesian_error_topic" value="$(arg cartesian_error_topic)"/>
+        <param name="set_mode_service" value="$(arg set_mode_service)"/>
+    
+        <param name="rate" value="$(arg rate)"/>
+
+        <param name="error_gain" value="$(arg error_gain)"/>    
+
+        <param name="dls_joint_speed_saturation" value="$(arg dls_joint_speed_saturation)"/>  
+
+        <param name="second_obj_gain" value="$(arg second_obj_gain)"/> 
+        <rosparam param="joint_target_robot_second_obj" subst_value="true">$(arg joint_target_robot_second_obj)</rosparam>
+        <rosparam param="joint_weights_second_obj" subst_value="true">$(arg joint_weights_second_obj)</rosparam>
+
+        <rosparam param="cartesian_mask" subst_value="true">$(arg cartesian_mask)</rosparam>
+
+        <rosparam param="n_T_e_position" subst_value="true">$(arg n_T_e_position)</rosparam>
+        <rosparam param="n_T_e_quaternion" subst_value="true">$(arg n_T_e_quaternion)</rosparam>
+
+    </node>
+
+</launch>
