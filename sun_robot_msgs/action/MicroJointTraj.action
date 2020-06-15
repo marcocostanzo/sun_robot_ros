@@ -1,14 +1,12 @@
 # Define the goal
-# If time and/or duration is 1-length => option applied to all trajs
-time[] initial_time # if initial_time[i]=0 => start as soon as possible
-duration[] traj_duration
+time initial_time # if zero => initial_time = ros::Time_now()
+duration traj_duration
 float64[] initial_position 
 float64[] final_position
 float64[] initial_velocity 
 float64[] final_velocity
 float64[] initial_acceleration 
 float64[] final_acceleration
-bool initial_time_to_time_now #if true translate the traj in time so that min(initial_time)=ros::Time::now()
 string[] joint_names
 ---
 # Define the result

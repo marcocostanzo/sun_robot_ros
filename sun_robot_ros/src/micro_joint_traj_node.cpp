@@ -23,32 +23,13 @@ void micro_joint_traj_execute_cb(const sun_robot_msgs::MicroJointTrajGoalConstPt
     sun::Vector_Independent_Traj traj;
 
     for(int i=0; i<num_joints; i++)
-    {
-        double duration;
-        if(goal->traj_duration.size() == 1)
-        {
-            duration = goal->traj_duration[0].toSec();
-        }
-        else
-        {
-            duration = goal->traj_duration[i].toSec();
-        }
-        double initial_time;
-        if(goal->traj_duration.size() == 1)
-        {
-            initial_time = goal->initial_time[0].toSec();
-        }
-        else
-        {
-            initial_time = goal->initial_time[i].toSec();
-        }
-            
+    {            
         traj.push_back_traj(
             sun::Quintic_Poly_Traj(
-                duration,
+                goal->traj_duration.toSec(),
                 goal->initial_position[i],
                 goal->final_position[i],
-                initial_time,
+                goal->initial_time.toSec(),
                 goal->initial_velocity[i],
                 goal->final_velocity[i],
                 goal->initial_acceleration[i],
@@ -73,7 +54,7 @@ void micro_joint_traj_execute_cb(const sun_robot_msgs::MicroJointTrajGoalConstPt
     ros::Time time_now = ros::Time::now();
     double time_now_sec = time_now.toSec();
 
-    if(goal->initial_time_to_time_now)
+    if(goal->initial_time.toSec() == 0.0)
     {
         traj.changeInitialTime(time_now_sec);
     }
