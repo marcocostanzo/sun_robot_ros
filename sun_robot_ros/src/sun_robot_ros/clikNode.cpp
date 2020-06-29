@@ -79,6 +79,7 @@ namespace sun{
                 robot_.getNumJoints(), 
                 TooN::Ones(robot_.getNumJoints())
             );
+        ROS_INFO_STREAM( ros::this_node::getName() << " CLIK Target conf weights: " << joint_weights_second_obj_);
 
         //cartesian_mask
         cartesian_mask_ = 
@@ -86,8 +87,9 @@ namespace sun{
                 nh_for_parmas, 
                 "cartesian_mask", 
                 robot_.getNumJoints(), 
-                TooN::Ones(robot_.getNumJoints())
+                TooN::Ones(6)
             );
+        ROS_INFO_STREAM( ros::this_node::getName() << " CLIK Cartesian Mask: " << cartesian_mask_);
 
         //n_T_e
         {
@@ -109,6 +111,7 @@ namespace sun{
         TooN::Matrix<4,4> n_T_e = transl(n_T_e_position);
         n_T_e.slice<0,0,3,3>() = n_T_e_quaternion.torot();
         robot_.setnTe(n_T_e);
+        ROS_INFO_STREAM( ros::this_node::getName() << " CLIK nTe: \n" <<  robot_.getnTe() );
         }
         
     }
@@ -156,6 +159,11 @@ bool clikNode::setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request  &req,
         case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY:
         {
             ROS_WARN_STREAM( ros::this_node::getName() << " CLIK MODE_VELOCITY");
+            break;
+        }
+        case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE:
+        {
+            ROS_WARN_STREAM( ros::this_node::getName() << " CLIK MODE_VELOCITY_EE");
             break;
         }
         default:
@@ -215,6 +223,7 @@ void clikNode::run()
                 break;
             }
             case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY:
+            case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE:
             {
                 refresh_cartesian_pose();
                 clik_core(
@@ -307,7 +316,8 @@ void clikNode::safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR)
 
 void clikNode::desiredPose_cb( const geometry_msgs::PoseStamped::ConstPtr& pose_msg )
 {
-
+    if(mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_POSITION)
+    {
     pd_k_[0] = pose_msg->pose.position.x;
     pd_k_[1] = pose_msg->pose.position.y;
     pd_k_[2] = pose_msg->pose.position.z;
@@ -320,19 +330,37 @@ void clikNode::desiredPose_cb( const geometry_msgs::PoseStamped::ConstPtr& pose_
                     pose_msg->pose.orientation.z
                     )
                 );
-
+    }
 }
 
 void clikNode::desiredTwist_cb( const geometry_msgs::TwistStamped::ConstPtr& twist_msg )
 {
-                
-    dpd_k_[0] = twist_msg->twist.linear.x;
-    dpd_k_[1] = twist_msg->twist.linear.y;
-    dpd_k_[2] = twist_msg->twist.linear.z;
+    if(mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_POSITION || mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_VELOCITY)
+    {      
+        dpd_k_[0] = twist_msg->twist.linear.x;
+        dpd_k_[1] = twist_msg->twist.linear.y;
+        dpd_k_[2] = twist_msg->twist.linear.z;
 
-    omega_d_k_[0] = twist_msg->twist.angular.x;
-    omega_d_k_[1] = twist_msg->twist.angular.y;
-    omega_d_k_[2] = twist_msg->twist.angular.z;
+        omega_d_k_[0] = twist_msg->twist.angular.x;
+        omega_d_k_[1] = twist_msg->twist.angular.y;
+        omega_d_k_[2] = twist_msg->twist.angular.z;
+    }
+    else if(mode_ == sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE)
+    {
+        dpd_k_[0] = twist_msg->twist.linear.x;
+        dpd_k_[1] = twist_msg->twist.linear.y;
+        dpd_k_[2] = twist_msg->twist.linear.z;
+
+        omega_d_k_[0] = twist_msg->twist.angular.x;
+        omega_d_k_[1] = twist_msg->twist.angular.y;
+        omega_d_k_[2] = twist_msg->twist.angular.z;
+
+        TooN::Matrix<3,3> b_R_e = robot_.fkine(qDH_k_).slice<0,0,3,3>();
+        dpd_k_ = b_R_e * dpd_k_;
+        omega_d_k_ = b_R_e * omega_d_k_;
+
+    }
+    
 
 }
 
