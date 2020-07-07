@@ -64,19 +64,14 @@ private:
 
   //! ROS
   ros::NodeHandle nh_;
-  std::string desired_pose_topic_str_;
-  std::string desired_twist_topic_str_;
-  std::string cartesian_error_topic_str_;
-  std::string service_server_set_mode_str_;
-  std::string service_server_get_state_str_;
-  std::string service_server_set_end_effector_str_;
   std::vector<std::string> ros_joint_names_;
   std::string ros_base_frame_id_;
 
 public:
-  clikNode(Robot& robot, const ros::NodeHandle& nh_for_topics, const ros::NodeHandle& nh_for_parmas,
-           const std::function<TooN::Vector<>()>& get_joint_position_fcn,
-           const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn);
+  clikNode(Robot& robot, const std::function<TooN::Vector<>()>& get_joint_position_fcn,
+           const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn,
+           const ros::NodeHandle& nh_for_topics = ros::NodeHandle("clik"),
+           const ros::NodeHandle& nh_for_parmas = ros::NodeHandle("~"));
 
   ~clikNode() = default;
 

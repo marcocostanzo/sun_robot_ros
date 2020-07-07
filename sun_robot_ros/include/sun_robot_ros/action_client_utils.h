@@ -4,6 +4,7 @@
 #include "actionlib/client/simple_action_client.h"
 #include "sun_robot_msgs/JointTrajectoryAction.h"
 #include "sun_robot_msgs/LineSegmentTrajectoryAction.h"
+#include "sun_robot_ros/ClikClient.h"
 
 namespace sun
 {
@@ -24,6 +25,11 @@ void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSe
                             const geometry_msgs::Pose& initial_pose, const geometry_msgs::Pose& final_pose,
                             const ros::Duration& duration, double sampling_freq, const std::string frame_id = "",
                             const ros::Time& t0 = ros::Time::now());
+
+void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSegmentTrajectoryAction>& ac,
+                            ClikClient& clik, std::shared_ptr<tf2_ros::Buffer>& tf2_buffer,
+                            geometry_msgs::PoseStamped desired_pose, const ros::Duration& duration,
+                            double sampling_freq, const ros::Time& t0 = ros::Time::now());
 
 //* IMPL *//
 
@@ -137,16 +143,18 @@ void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSe
 }
 
 void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSegmentTrajectoryAction>& ac,
-                            std::shared_ptr<tf2_ros::Buffer>& tf2_buffer, geometry_msgs::PoseStamped desired_pose,
-                            const ros::Duration& duration, double sampling_freq, const ros::Time& t0 = ros::Time::now())
+                            ClikClient& clik, std::shared_ptr<tf2_ros::Buffer>& tf2_buffer,
+                            geometry_msgs::PoseStamped desired_pose, const ros::Duration& duration,
+                            double sampling_freq, const ros::Time& t0)
 {
-  stopClik();
-  geometry_msgs::PoseStamped initial_pose = getCurrentClikEEPose();
+  clik.stop();
+  sun_robot_msgs::ClikGetState::Response clik_state = clik.get_state();
+  geometry_msgs::PoseStamped initial_pose = clik_state.ee_pose;
   desired_pose = tf2_buffer->transform(desired_pose, initial_pose.header.frame_id, ros::Duration(1.0));
-  startClikPositionMode();
+  clik.mode_position();
   executeLineSegmentTraj(ac, initial_pose.pose, desired_pose.pose, duration, sampling_freq,
                          desired_pose.header.frame_id, t0);
-  stopClik();
+  clik.stop();
 }
 
 }  // namespace sun

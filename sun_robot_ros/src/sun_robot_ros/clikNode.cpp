@@ -19,9 +19,45 @@
 
 namespace sun
 {
-clikNode::clikNode(Robot& robot, const ros::NodeHandle& nh_for_topics, const ros::NodeHandle& nh_for_parmas,
-                   const std::function<TooN::Vector<>()>& get_joint_position_fcn,
-                   const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn)
+TooN::Vector<> getVectorFromParam(const ros::NodeHandle& nh, const std::string& param_str, int expected_size,
+                                  const TooN::Vector<>& default_value)
+{
+  if (nh.hasParam(param_str))
+  {
+    std::vector<double> vec_std;
+    nh.getParam(param_str, vec_std);
+    if (vec_std.size() != expected_size)
+    {
+      ROS_ERROR_STREAM(ros::this_node::getName() << " CLIK Error: " << param_str << " size mismatch");
+      throw robot_invalid_parameter(param_str + " size mismatch");
+    }
+    return TooN::wrapVector(vec_std.data(), vec_std.size());
+  }
+  else
+  {
+    return default_value;
+  }
+}
+
+template <typename T>
+std::vector<T> getVectorFromParam(const ros::NodeHandle& nh, const std::string& param_str,
+                                  const std::vector<T>& default_value)
+{
+  if (nh.hasParam(param_str))
+  {
+    std::vector<T> vec_std;
+    nh.getParam(param_str, vec_std);
+    return vec_std;
+  }
+  else
+  {
+    return default_value;
+  }
+}
+
+clikNode::clikNode(Robot& robot, const std::function<TooN::Vector<>()>& get_joint_position_fcn,
+                   const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn,
+                   const ros::NodeHandle& nh_for_topics, const ros::NodeHandle& nh_for_parmas)
   : robot_(robot)
   , nh_(nh_for_topics)
   , get_joint_position_fcn_(get_joint_position_fcn)
@@ -33,13 +69,6 @@ clikNode::clikNode(Robot& robot, const ros::NodeHandle& nh_for_topics, const ros
   , mode_(sun_robot_msgs::ClikSetMode::Request::MODE_STOP)
 {
   // params
-  nh_for_parmas.param("desired_pose_topic", desired_pose_topic_str_, std::string("clik/desired_pose"));
-  nh_for_parmas.param("desired_twist_topic", desired_twist_topic_str_, std::string("clik/desired_twist"));
-  nh_for_parmas.param("cartesian_error_topic", cartesian_error_topic_str_, std::string("clik/cartesian_error"));
-  nh_for_parmas.param("set_mode_service", service_server_set_mode_str_, std::string("clik/set_mode"));
-  nh_for_parmas.param("get_state_service", service_server_get_state_str_, std::string("clik/get_state"));
-  nh_for_parmas.param("set_end_effector_service", service_server_set_end_effector_str_,
-                      std::string("clik/set_end_effector"));
   nh_for_parmas.param("rate", Ts_, 1000.0);
   Ts_ = 1.0 / Ts_;
   nh_for_parmas.param("error_gain", error_gain_, 0.5);
@@ -151,7 +180,7 @@ bool clikNode::setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request
   {
     ROS_ERROR_STREAM(ros::this_node::getName() << " setEndEffector service: it is possible only in MODE_STOP");
     res.success = false;
-    return;
+    return true;
   }
 
   TooN::Vector<3> n_T_e_position =
@@ -215,19 +244,17 @@ bool clikNode::setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request& req, sun_rob
 void clikNode::run()
 {
   // Initialize subscribers
-  ros::Subscriber desired_pose_sub = nh_.subscribe(desired_pose_topic_str_, 1, &clikNode::desiredPose_cb, this);
-  ros::Subscriber desired_twist_sub = nh_.subscribe(desired_twist_topic_str_, 1, &clikNode::desiredTwist_cb, this);
+  ros::Subscriber desired_pose_sub = nh_.subscribe("desired_pose", 1, &clikNode::desiredPose_cb, this);
+  ros::Subscriber desired_twist_sub = nh_.subscribe("desired_twist", 1, &clikNode::desiredTwist_cb, this);
 
   // Publish error
-  ros::Publisher cartesian_error_pub = nh_.advertise<sun_ros_msgs::Float64Stamped>(cartesian_error_topic_str_, 1);
+  ros::Publisher cartesian_error_pub = nh_.advertise<sun_ros_msgs::Float64Stamped>("cartesian_error", 1);
 
   // Init Services
-  ros::ServiceServer serviceSetMode =
-      nh_.advertiseService(service_server_set_mode_str_, &clikNode::setMode_srv_cb, this);
-  ros::ServiceServer serviceGetState =
-      nh_.advertiseService(service_server_get_state_str_, &clikNode::getState_srv_cb, this);
+  ros::ServiceServer serviceSetMode = nh_.advertiseService("set_mode", &clikNode::setMode_srv_cb, this);
+  ros::ServiceServer serviceGetState = nh_.advertiseService("get_state", &clikNode::getState_srv_cb, this);
   ros::ServiceServer serviceSetEndEffector =
-      nh_.advertiseService(service_server_set_end_effector_str_, &clikNode::setEndEffector_srv_cb, this);
+      nh_.advertiseService("set_end_effector", &clikNode::setEndEffector_srv_cb, this);
 
   refresh();
 
@@ -363,42 +390,6 @@ void clikNode::desiredTwist_cb(const geometry_msgs::TwistStamped::ConstPtr& twis
     TooN::Matrix<3, 3> b_R_e = robot_.fkine(qDH_k_).slice<0, 0, 3, 3>();
     dpd_k_ = b_R_e * dpd_k_;
     omega_d_k_ = b_R_e * omega_d_k_;
-  }
-}
-
-TooN::Vector<> getVectorFromParam(const ros::NodeHandle& nh, const std::string& param_str, int expected_size,
-                                  const TooN::Vector<>& default_value)
-{
-  if (nh.hasParam(param_str))
-  {
-    std::vector<double> vec_std;
-    nh.getParam(param_str, vec_std);
-    if (vec_std.size() != expected_size)
-    {
-      ROS_ERROR_STREAM(ros::this_node::getName() << " CLIK Error: " << param_str << " size mismatch");
-      throw robot_invalid_parameter(param_str + " size mismatch");
-    }
-    return TooN::wrapVector(vec_std.data(), vec_std.size());
-  }
-  else
-  {
-    return default_value;
-  }
-}
-
-template <typename T>
-std::vector<T> getVectorFromParam(const ros::NodeHandle& nh, const std::string& param_str,
-                                  const std::vector<T>& default_value)
-{
-  if (nh.hasParam(param_str))
-  {
-    std::vector<T> vec_std;
-    nh.getParam(param_str, vec_std);
-    return vec_std;
-  }
-  else
-  {
-    return default_value;
   }
 }
 
