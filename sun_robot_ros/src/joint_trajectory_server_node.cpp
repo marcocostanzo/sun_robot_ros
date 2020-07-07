@@ -3,128 +3,123 @@
 #include "sensor_msgs/JointState.h"
 
 #include <actionlib/server/simple_action_server.h>
-#include <actionlib/client/simple_action_client.h>
 
+#include "sun_traj_lib/Quintic_Poly_Traj.h"
+#include "sun_traj_lib/Vector_Independent_Traj.h"
 
 #include "sun_robot_msgs/JointTrajectoryAction.h"
-#include "sun_robot_msgs/MicroJointTrajAction.h"
-
 
 std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::JointTrajectoryAction>> as_joint_traj;
-std::unique_ptr<actionlib::SimpleActionClient<sun_robot_msgs::MicroJointTrajAction>> ac_micro_joint_traj;
+ros::Publisher joint_state_pub;
 
 void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& goal)
 {
+  ros::Time t0 = goal->trajectory.header.stamp;
+  if (t0.toSec() == 0)
+  {
+    t0 = ros::Time::now();
+  }
+  ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
 
-    ros::Time t0 = goal->trajectory.header.stamp;
-    if(t0.toSec() == 0)
+  sensor_msgs::JointState out_msg;
+  out_msg.name.resize(goal->trajectory.joint_names.size());
+  out_msg.position.resize(goal->trajectory.joint_names.size());
+  out_msg.velocity.resize(goal->trajectory.joint_names.size());
+  out_msg.effort.resize(goal->trajectory.joint_names.size());
+  for (int i = 0; i < goal->trajectory.joint_names.size(); i++)
+  {
+    out_msg.name[i] = goal->trajectory.joint_names[i];
+    out_msg.effort[i] = 0.0;
+  }
+
+  for (int i = 1; i < goal->trajectory.points.size(); i++)
+  {
+    if (as_joint_traj->isPreemptRequested())
     {
-        t0 = ros::Time::now();
-    }
-    ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
-
-    for(int i=1; i<goal->trajectory.points.size(); i++ )
-    {
-
-        if(as_joint_traj->isPreemptRequested())
-        {
-            break;
-        }
-        
-
-        sun_robot_msgs::MicroJointTrajGoal micro_goal_msg;
-
-        micro_goal_msg.initial_time = t0 + goal->trajectory.points[i-1].time_from_start;
-        micro_goal_msg.traj_duration = goal->trajectory.points[i].time_from_start - goal->trajectory.points[i-1].time_from_start;
-        micro_goal_msg.joint_names = goal->trajectory.joint_names;
-
-        micro_goal_msg.initial_position = goal->trajectory.points[i-1].positions;
-        micro_goal_msg.final_position = goal->trajectory.points[i].positions;
-
-        micro_goal_msg.initial_velocity = goal->trajectory.points[i-1].velocities;
-        micro_goal_msg.final_velocity = goal->trajectory.points[i].velocities;
-
-        micro_goal_msg.initial_acceleration = goal->trajectory.points[i-1].accelerations;
-        micro_goal_msg.final_acceleration = goal->trajectory.points[i].accelerations;
-
-        // TODO CALL uACTION!
-        ac_micro_joint_traj->sendGoal(
-            micro_goal_msg
-            //, TODO feedbk
-            //actionlib::SimpleActionClient<sun_robot_msgs::MicroJointTrajAction>::SimpleDoneCallback(),
-            //actionlib::SimpleActionClient<sun_robot_msgs::MicroJointTrajAction>::SimpleActiveCallback(),
-            //actionlib::SimpleActionClient<sun_robot_msgs::MicroJointTrajAction>::SimpleFeedbackCallback()
-        );
-        
-        //wait uACTION
-        while (!ac_micro_joint_traj->waitForResult(ros::Duration(0.0005)))
-        {
-            if(as_joint_traj->isPreemptRequested())
-            {
-                ac_micro_joint_traj->cancelAllGoals();
-                break;
-            }
-        }
-        
-        //check action result
-        sun_robot_msgs::MicroJointTrajResultConstPtr result = ac_micro_joint_traj->getResult();
-        if(ac_micro_joint_traj->getState().state_ != actionlib::TerminalState::SUCCEEDED)
-        {
-            ROS_ERROR_STREAM( ros::this_node::getName() << " Trajectory node, invalid terminal state in uTraj" << ac_micro_joint_traj->getState().text_ );
-        }
-
+      break;
     }
 
-    if(as_joint_traj->isPreemptRequested())
+    const trajectory_msgs::JointTrajectoryPoint& traj_point_prev = goal->trajectory.points[i - 1];
+    const trajectory_msgs::JointTrajectoryPoint& traj_point_next = goal->trajectory.points[i];
+
+    sun::Vector_Independent_Traj traj;
+    for (int i = 0; i < goal->trajectory.joint_names.size(); i++)
     {
-        as_joint_traj->setPreempted();
+      traj.push_back_traj(sun::Quintic_Poly_Traj(
+          (traj_point_next.time_from_start - traj_point_prev.time_from_start).toSec(), traj_point_prev.positions[i],
+          traj_point_next.positions[i], (t0 + traj_point_prev.time_from_start).toSec(), traj_point_prev.velocities[i],
+          traj_point_next.velocities[i], traj_point_prev.accelerations[i], traj_point_next.accelerations[i]));
     }
-    else
+
+    sun_robot_msgs::JointTrajectoryFeedback feedbk;
+    ros::Rate loop_rate(goal->sampling_freq);
+    ros::Time time_now = ros::Time::now();
+    double time_now_sec = time_now.toSec();
+    while (ros::ok() && !traj.isCompleate(time_now_sec) && !as_joint_traj->isPreemptRequested())
     {
-        as_joint_traj->setSucceeded();
+      time_now = ros::Time::now();
+      time_now_sec = time_now.toSec();
+
+      TooN::Vector<> q = traj.getPosition(time_now_sec);
+      TooN::Vector<> dq = traj.getVelocity(time_now_sec);
+      // TooN::Vector<> ddq = traj.getAcceleration(time_now_sec);
+
+      if (goal->use_exponential_junction)
+      {
+        TooN::Vector<> q_i = TooN::wrapVector(goal->initial_joints.data(), goal->initial_joints.size());
+        q = (q_i - q) * exp(-(time_now_sec - t0.toSec()) / goal->junction_time_constant) + q;
+        dq = -(dq + (q_i - q) / goal->junction_time_constant) *
+                 exp(-(time_now_sec - t0.toSec()) / goal->junction_time_constant) +
+             dq;
+      }
+
+      feedbk.time_left = tf - time_now;
+
+      for (int i = 0; i < goal->trajectory.joint_names.size(); i++)
+      {
+        out_msg.position[i] = q[i];
+        out_msg.velocity[i] = dq[i];
+      }
+
+      out_msg.header.stamp = time_now;
+
+      joint_state_pub.publish(out_msg);
+      as_joint_traj->publishFeedback(feedbk);
+      loop_rate.sleep();
     }
-        
+  }
+
+  if (as_joint_traj->isPreemptRequested())
+  {
+    as_joint_traj->setPreempted();
+  }
+  else
+  {
+    as_joint_traj->setSucceeded();
+  }
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-    ros::init(argc,argv, "micro_joint_traj");
+  ros::init(argc, argv, "micro_joint_traj");
 
-    ros::NodeHandle nh_private = ros::NodeHandle("~");
-    ros::NodeHandle nh_public = ros::NodeHandle();
+  ros::NodeHandle nh_private = ros::NodeHandle("~");
+  ros::NodeHandle nh_public = ros::NodeHandle();
 
-    std::string micro_traj_action;
-    nh_private.param("micro_traj_action", micro_traj_action, std::string("micro_traj_action"));
-    std::string action_name_str;
-    nh_private.param("action_name", action_name_str, std::string("trajectory_action"));
+  std::string traj_out_topic_str;
+  nh_private.param("traj_out_topic", traj_out_topic_str, std::string("traj_out"));
+  std::string action_name_str;
+  nh_private.param("action_name", action_name_str, std::string("trajectory_action"));
 
-    ac_micro_joint_traj = 
-        std::unique_ptr<actionlib::SimpleActionClient<sun_robot_msgs::MicroJointTrajAction>>(
-            new actionlib::SimpleActionClient<sun_robot_msgs::MicroJointTrajAction>(
-                nh_public,
-                micro_traj_action,
-                true
-            )
-        );
+  joint_state_pub = nh_public.advertise<sensor_msgs::JointState>(traj_out_topic_str, 1);
 
-    as_joint_traj = 
-        std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::JointTrajectoryAction>>(
-            new actionlib::SimpleActionServer<sun_robot_msgs::JointTrajectoryAction>(
-                nh_public, 
-                action_name_str, 
-                joint_traj_execute_cb,
-                false
-            )
-        );
+  as_joint_traj = std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::JointTrajectoryAction>>(
+      new actionlib::SimpleActionServer<sun_robot_msgs::JointTrajectoryAction>(nh_public, action_name_str,
+                                                                               joint_traj_execute_cb, false));
 
-    ac_micro_joint_traj->waitForServer();
+  as_joint_traj->start();
 
-    as_joint_traj->start();
+  ros::spin();
 
-    ros::spin();
-
-    return 0;
+  return 0;
 }
-
-
-

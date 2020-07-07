@@ -1,0 +1,11 @@
+time initial_time
+duration traj_duration
+string frame_id
+geometry_msgs/Pose initial_pose
+geometry_msgs/Pose final_pose
+float64 sampling_freq
+---
+
+---
+
+duration time_left

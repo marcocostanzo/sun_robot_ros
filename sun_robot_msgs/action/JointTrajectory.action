@@ -1,7 +1,17 @@
 # Define the goal
 trajectory_msgs/JointTrajectory trajectory
+float64 sampling_freq
+
+# if exponential_junction the trajectory will be considered a nominal one q_N(t)
+# the actual trajectory q(t) will be
+# q(t) = (initial_joints - q_N(t))*exp(-(t-t0)/junction_time_constant) + q_N(t)
+# NOTE: initial_joints must be ordered as the joints in the trajectory
+bool use_exponential_junction
+float64[] initial_joints
+float64 junction_time_constant
+
 ---
 # Define the result
 ---
 # Define a feedback message
-float64 time_left
+duration time_left

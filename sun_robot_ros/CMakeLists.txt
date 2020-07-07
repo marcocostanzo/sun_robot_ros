@@ -222,3 +222,10 @@ target_link_libraries(joint_trajectory_server
   ${catkin_LIBRARIES}
 )
 #############################################################
+#############################################################
+add_executable(line_segment_trajectory_server src/line_segment_trajectory_server_node.cpp)
+add_dependencies(line_segment_trajectory_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(line_segment_trajectory_server
+  ${catkin_LIBRARIES}
+)
+#############################################################

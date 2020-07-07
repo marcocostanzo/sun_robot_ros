@@ -11,6 +11,7 @@ find_package(catkin REQUIRED
 message_generation
 genmsg actionlib_msgs
 trajectory_msgs
+sensor_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -57,6 +58,8 @@ trajectory_msgs
 add_service_files(
   FILES
   ClikSetMode.srv
+  ClikGetState.srv
+  ClikSetEndEffector.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -64,6 +67,7 @@ add_action_files(
   FILES
   MicroJointTraj.action
   JointTrajectory.action
+  LineSegmentTrajectory.action
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -71,6 +75,7 @@ generate_messages(
   DEPENDENCIES
   actionlib_msgs 
   trajectory_msgs
+  sensor_msgs
 )
 
 ################################################
@@ -105,7 +110,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES sun_robot_msgs
- CATKIN_DEPENDS message_runtime trajectory_msgs actionlib_msgs
+ CATKIN_DEPENDS message_runtime trajectory_msgs actionlib_msgs sensor_msgs
 #  DEPENDS system_lib
 )
 

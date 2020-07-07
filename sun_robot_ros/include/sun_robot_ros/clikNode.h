@@ -15,9 +15,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "ros/ros.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/TwistStamped.h"
+#include "ros/ros.h"
 
 #include "sun_ros_msgs/Float64Stamped.h"
 
@@ -25,98 +25,85 @@
 
 #include "sun_robot_ros/exceptions.h"
 
+#include "sun_robot_msgs/ClikGetState.h"
+#include "sun_robot_msgs/ClikSetEndEffector.h"
 #include "sun_robot_msgs/ClikSetMode.h"
 
-
-namespace sun{
-
+namespace sun
+{
 class clikNode
 {
 private:
-    
-    //! Robot object
-    Robot& robot_;
+  //! Robot object
+  Robot& robot_;
 
-    //! state
-    int mode_;
-    TooN::Vector<> qDH_k_;
-    UnitQuaternion quat_k_1;
-    //! zoh
-    TooN::Vector<3> pd_k_; 
-    UnitQuaternion quat_d_k_;
-    TooN::Vector<3> dpd_k_;
-    TooN::Vector<3> omega_d_k_;
+  //! state
+  int mode_;
+  TooN::Vector<> qDH_k_;
+  UnitQuaternion quat_k_1;
+  //! zoh
+  TooN::Vector<3> pd_k_;
+  UnitQuaternion quat_d_k_;
+  TooN::Vector<3> dpd_k_;
+  TooN::Vector<3> omega_d_k_;
 
-    //! Outputs
-    TooN::Vector<6> cartesian_error_k_;
+  //! Outputs
+  TooN::Vector<6> cartesian_error_k_;
 
-    //! Params
-    TooN::Vector< 6, int > cartesian_mask_;
-    double error_gain_; // should be gain/Ts
-    double Ts_;
-    double second_obj_gain_;  // should be gain/Ts
-    TooN::Vector<> jointDH_target_second_obj_;
-    TooN::Vector<> joint_weights_second_obj_;
+  //! Params
+  TooN::Vector<6, int> cartesian_mask_;
+  double error_gain_;  // should be gain/Ts
+  double Ts_;
+  double second_obj_gain_;  // should be gain/Ts
+  TooN::Vector<> jointDH_target_second_obj_;
+  TooN::Vector<> joint_weights_second_obj_;
 
-    //! Cbs
-    std::function<TooN::Vector<>()> get_joint_position_fcn_;
-    std::function<void(TooN::Vector<>, TooN::Vector<>)> joint_publish_fcn_;
+  //! Cbs
+  std::function<TooN::Vector<>()> get_joint_position_fcn_;
+  std::function<void(TooN::Vector<>, TooN::Vector<>)> joint_publish_fcn_;
 
-    //! ROS
-    ros::NodeHandle nh_;
-    std::string desired_pose_topic_str_;
-    std::string desired_twist_topic_str_;
-    std::string cartesian_error_topic_str_;
-    std::string service_server_set_mode_str_;
+  //! ROS
+  ros::NodeHandle nh_;
+  std::string desired_pose_topic_str_;
+  std::string desired_twist_topic_str_;
+  std::string cartesian_error_topic_str_;
+  std::string service_server_set_mode_str_;
+  std::string service_server_get_state_str_;
+  std::string service_server_set_end_effector_str_;
+  std::vector<std::string> ros_joint_names_;
+  std::string ros_base_frame_id_;
 
 public:
+  clikNode(Robot& robot, const ros::NodeHandle& nh_for_topics, const ros::NodeHandle& nh_for_parmas,
+           const std::function<TooN::Vector<>()>& get_joint_position_fcn,
+           const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn);
 
-    clikNode(  
-            Robot& robot, 
-            const ros::NodeHandle& nh_for_topics,
-            const ros::NodeHandle& nh_for_parmas,
-            const std::function<TooN::Vector<>()>& get_joint_position_fcn, 
-            const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn
-            );
+  ~clikNode() = default;
 
-    ~clikNode() = default;
+  /* RUNNERS */
 
-/* RUNNERS */
+  void refresh_cartesian_pose();
 
-void refresh_cartesian_pose();
+  void refresh();
 
-void refresh();
+  bool getState_srv_cb(sun_robot_msgs::ClikGetState::Request& req, sun_robot_msgs::ClikGetState::Response& res);
 
-bool setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request  &req, 
-   		 		sun_robot_msgs::ClikSetMode::Response &res);
+  bool setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request& req,
+                             sun_robot_msgs::ClikSetEndEffector::Response& res);
 
-void run();
+  bool setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request& req, sun_robot_msgs::ClikSetMode::Response& res);
 
+  void run();
 
-//Note: for velocity mode it is sufficient clik_gain_=0;
-void clik_core(
-    double error_gain,
-    const TooN::Vector<3>& pd_k, 
-    const UnitQuaternion& quat_d_k, 
-    const TooN::Vector<3>& dpd_k,
-    const TooN::Vector<3>& omega_d_k
-    );
+  // Note: for velocity mode it is sufficient clik_gain_=0;
+  void clik_core(double error_gain, const TooN::Vector<3>& pd_k, const UnitQuaternion& quat_d_k,
+                 const TooN::Vector<3>& dpd_k, const TooN::Vector<3>& omega_d_k);
 
-void safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR);
+  void safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR);
 
-void desiredPose_cb( const geometry_msgs::PoseStamped::ConstPtr& pose_msg );
+  void desiredPose_cb(const geometry_msgs::PoseStamped::ConstPtr& pose_msg);
 
-void desiredTwist_cb( const geometry_msgs::TwistStamped::ConstPtr& twist_msg );
-
-private:
-
-TooN::Vector<> getVectorFromParam(
-    const ros::NodeHandle& nh, 
-    const std::string& param_str, 
-    int expected_size, 
-    const TooN::Vector<>& default_value
-    );
-
+  void desiredTwist_cb(const geometry_msgs::TwistStamped::ConstPtr& twist_msg);
 };
 
-} // Namespace sun
+}  // Namespace sun
