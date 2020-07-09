@@ -5,6 +5,7 @@
 #include "sun_robot_msgs/JointTrajectoryAction.h"
 #include "sun_robot_msgs/LineSegmentTrajectoryAction.h"
 #include "sun_robot_ros/ClikClient.h"
+#include "tf2_ros/buffer.h"
 
 namespace sun
 {
