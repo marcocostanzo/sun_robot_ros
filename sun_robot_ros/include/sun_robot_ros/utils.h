@@ -6,6 +6,8 @@
 
 namespace sun
 {
+trajectory_msgs::JointTrajectory scaleTrajectoryInTime(trajectory_msgs::JointTrajectory traj, double scale_factor);
+
 trajectory_msgs::JointTrajectory reverseTrajectory(const trajectory_msgs::JointTrajectory& traj);
 
 trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs);
@@ -17,6 +19,15 @@ sensor_msgs::JointState filterJointNames(const sensor_msgs::JointState& j_state,
                                          const std::vector<std::string>& jont_names);
 
 //* IMPL *//
+
+trajectory_msgs::JointTrajectory scaleTrajectoryInTime(trajectory_msgs::JointTrajectory traj, double scale_factor)
+{
+  for (auto& point : traj.points)
+  {
+    point.time_from_start *= scale_factor;
+  }
+  return traj;
+}
 
 trajectory_msgs::JointTrajectory reverseTrajectory(const trajectory_msgs::JointTrajectory& traj)
 {

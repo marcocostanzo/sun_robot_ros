@@ -12,18 +12,18 @@ namespace sun
 
 void executeJointTraj(actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction>& ac,
                       const trajectory_msgs::JointTrajectory& traj, double sampling_freq,
-                      const ros::Time& t0 = ros::Time::now(), bool use_exponential_junction = false,
+                      const ros::Time& t0 = ros::Time(0), bool use_exponential_junction = false,
                       const std::vector<double>& initial_joints = {}, double junction_time_constant = 1.0);
 
 void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSegmentTrajectoryAction>& ac,
                             const geometry_msgs::Pose& initial_pose, const geometry_msgs::Pose& final_pose,
                             const ros::Duration& duration, double sampling_freq, const std::string frame_id = "",
-                            const ros::Time& t0 = ros::Time::now());
+                            const ros::Time& t0 = ros::Time(0));
 
 void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSegmentTrajectoryAction>& ac,
                             ClikClient& clik, std::shared_ptr<tf2_ros::Buffer>& tf2_buffer,
                             geometry_msgs::PoseStamped desired_pose, const ros::Duration& duration,
-                            double sampling_freq, const ros::Time& t0 = ros::Time::now());
+                            double sampling_freq, const ros::Time& t0 = ros::Time(0));
 
 //* IMPL *//
 
