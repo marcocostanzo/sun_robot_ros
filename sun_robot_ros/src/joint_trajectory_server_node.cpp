@@ -43,19 +43,23 @@ void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& go
     const trajectory_msgs::JointTrajectoryPoint& traj_point_next = goal->trajectory.points[i];
 
     sun::Vector_Independent_Traj traj;
-    for (int i = 0; i < goal->trajectory.joint_names.size(); i++)
+    for (int j = 0; j < goal->trajectory.joint_names.size(); j++)
     {
       traj.push_back_traj(sun::Quintic_Poly_Traj(
-          (traj_point_next.time_from_start - traj_point_prev.time_from_start).toSec(), traj_point_prev.positions[i],
-          traj_point_next.positions[i], (t0 + traj_point_prev.time_from_start).toSec(), traj_point_prev.velocities[i],
-          traj_point_next.velocities[i], traj_point_prev.accelerations[i], traj_point_next.accelerations[i]));
+          (traj_point_next.time_from_start - traj_point_prev.time_from_start).toSec(), traj_point_prev.positions[j],
+          traj_point_next.positions[j], (t0 + traj_point_prev.time_from_start).toSec(), traj_point_prev.velocities[j],
+          traj_point_next.velocities[j], traj_point_prev.accelerations[j], traj_point_next.accelerations[j]));
     }
 
     sun_robot_msgs::JointTrajectoryFeedback feedbk;
     ros::Rate loop_rate(goal->sampling_freq);
     ros::Time time_now = ros::Time::now();
     double time_now_sec = time_now.toSec();
-    while (ros::ok() && !traj.isCompleate(time_now_sec) && !as_joint_traj->isPreemptRequested())
+    while (ros::ok() && !as_joint_traj->isPreemptRequested() &&
+           // traj compleate and exponential junction terminated (if active)
+           !(traj.isCompleate(time_now_sec) &&
+             ((goal->use_exponential_junction && (time_now_sec > 5.0 * goal->junction_time_constant)) ||
+              !goal->use_exponential_junction)))
     {
       time_now = ros::Time::now();
       time_now_sec = time_now.toSec();

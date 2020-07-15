@@ -9,18 +9,11 @@
 
 namespace sun
 {
+
 void executeJointTraj(actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction>& ac,
                       const trajectory_msgs::JointTrajectory& traj, double sampling_freq,
-                      const ros::Time& t0 = ros::Time::now(), bool reverse = false);
-
-trajectory_msgs::JointTrajectory reverseTrajectory(const trajectory_msgs::JointTrajectory& traj);
-
-void executeJointTraj(actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction>& ac,
-                      const std::vector<trajectory_msgs::JointTrajectory>& trajs, double sampling_freq,
-                      const ros::Time& t0 = ros::Time::now(), bool reverse = false);
-
-trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs,
-                                            bool reverse = false);
+                      const ros::Time& t0 = ros::Time::now(), bool use_exponential_junction = false,
+                      const std::vector<double>& initial_joints = {}, double junction_time_constant = 1.0);
 
 void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSegmentTrajectoryAction>& ac,
                             const geometry_msgs::Pose& initial_pose, const geometry_msgs::Pose& final_pose,
@@ -36,89 +29,24 @@ void executeLineSegmentTraj(actionlib::SimpleActionClient<sun_robot_msgs::LineSe
 
 void executeJointTraj(actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction>& ac,
                       const trajectory_msgs::JointTrajectory& traj, double sampling_freq, const ros::Time& t0,
-                      bool reverse)
+                      bool use_exponential_junction, const std::vector<double>& initial_joints,
+                      double junction_time_constant)
 {
-  if (reverse)
-  {
-    executeJointTraj(ac, reverseTrajectory(traj), sampling_freq, t0, false);
-  }
-
   sun_robot_msgs::JointTrajectoryGoal goal;
   goal.trajectory = traj;
   goal.trajectory.header.stamp = t0;
   goal.sampling_freq = sampling_freq;
+  goal.use_exponential_junction = use_exponential_junction;
+  goal.initial_joints = initial_joints;
+  goal.junction_time_constant = junction_time_constant;
 
   ac.sendGoalAndWait(goal);
+
+  ROS_INFO("client: executeJointTraj returned");
 
   if (ac.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
   {
     throw std::runtime_error("Fail to execute JointTraj");
-  }
-}
-
-trajectory_msgs::JointTrajectory reverseTrajectory(const trajectory_msgs::JointTrajectory& traj)
-{
-  ROS_ERROR_STREAM("reverseTrajectory NOT IMPLEMENTED");
-  throw std::runtime_error("reverseTrajectory NOT IMPLEMENTED");
-
-  trajectory_msgs::JointTrajectory traj_out;
-  traj_out.header = traj.header;
-  traj_out.joint_names = traj.joint_names;
-
-  ros::Duration total_duration = traj.points.back().time_from_start;
-
-  for (int p = (traj.points.size() - 1); p >= 0; p--)
-  {
-    trajectory_msgs::JointTrajectoryPoint traj_point = traj.points[p];
-    traj_point.time_from_start = total_duration - traj.points[p].time_from_start;
-    traj_out.points.push_back(traj_point);
-  }
-}
-
-void executeJointTraj(actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction>& ac,
-                      const std::vector<trajectory_msgs::JointTrajectory>& trajs, double sampling_freq,
-                      const ros::Time& t0, bool reverse)
-{
-  executeJointTraj(ac, mergeTrajs(trajs, reverse), sampling_freq, t0, false);
-}
-
-trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs, bool reverse)
-{
-  int i0 = (reverse ? (trajs.size() - 1) : (0));
-
-  trajectory_msgs::JointTrajectory traj;
-  traj.header = trajs[i0].header;
-  traj.joint_names = trajs[i0].joint_names;
-
-  for (int i = i0; (reverse ? (i >= 0) : (i < trajs.size())); (reverse ? (i--) : (i++)))
-  {
-    trajectory_msgs::JointTrajectory in_traj_i = (reverse ? (reverseTrajectory(trajs[i])) : (trajs[i]));
-
-    // Assert the same joint names!
-    if (traj.joint_names != in_traj_i.joint_names)
-    {
-      throw std::runtime_error("mergeTrajs: inconsistent joint names in traj vector");
-    }
-
-    ros::Duration last_time_from_start = (i == i0) ? ros::Duration(0.0) : traj.points.back().time_from_start;
-    for (int p = 0; p < in_traj_i.points.size(); p++)
-    {
-      if (in_traj_i.points[p].time_from_start == ros::Duration(0.0) && i != i0)
-      {
-        if (p != 0)
-        {
-          throw std::runtime_error("mergeTrajs: zero Duration in a non initial traj");
-        }
-        if (in_traj_i.points[p] != traj.points.back())
-        {
-          throw std::runtime_error("mergeTrajs: point in successive trajs not equals");
-        }
-        continue;
-      }
-      trajectory_msgs::JointTrajectoryPoint traj_point = in_traj_i.points[p];
-      traj_point.time_from_start = last_time_from_start + traj_point.time_from_start;
-      traj.points.push_back(traj_point);
-    }
   }
 }
 
