@@ -28,6 +28,7 @@
 #include "sun_robot_msgs/ClikGetState.h"
 #include "sun_robot_msgs/ClikSetEndEffector.h"
 #include "sun_robot_msgs/ClikSetMode.h"
+#include "sun_robot_msgs/ClikSetSecondaryObj.h"
 
 namespace sun
 {
@@ -82,6 +83,9 @@ public:
   void refresh();
 
   bool getState_srv_cb(sun_robot_msgs::ClikGetState::Request& req, sun_robot_msgs::ClikGetState::Response& res);
+
+  bool setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Request& req,
+                              sun_robot_msgs::ClikSetSecondaryObj::Response& res);
 
   bool setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request& req,
                              sun_robot_msgs::ClikSetEndEffector::Response& res);

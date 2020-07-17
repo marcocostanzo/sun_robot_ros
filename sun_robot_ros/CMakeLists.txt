@@ -230,3 +230,11 @@ target_link_libraries(line_segment_trajectory_server
   ${catkin_LIBRARIES}
 )
 #############################################################
+#############################################################
+add_executable(aquire_robot_config src/aquire_robot_config_node.cpp)
+add_dependencies(aquire_robot_config ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(aquire_robot_config
+  ${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+)
+#############################################################

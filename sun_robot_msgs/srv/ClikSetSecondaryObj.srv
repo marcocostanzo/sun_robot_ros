@@ -1,0 +1,17 @@
+float64 second_obj_gain #Gain of the second obj
+
+##
+##The following options are mutually exclusive, you can't set both
+##
+
+# Mode: Objective from topic
+# desired joint velocity for the second objective
+# the velocity will be projected in the jacobian kernel
+string second_obj_joint_velocity_topic
+
+# Mode: Objective is: reach the desired joint configuration
+float64[] desired_joint_configuration
+float64[] desired_joint_configuration_weights
+
+---
+bool success

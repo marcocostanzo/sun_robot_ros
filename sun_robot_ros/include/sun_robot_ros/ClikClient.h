@@ -2,11 +2,12 @@
 #ifndef SUN_ROBOT_ROS_CLIK_CLIENT_H
 #define SUN_ROBOT_ROS_CLIK_CLIENT_H
 
+#include "geometry_msgs/TransformStamped.h"
 #include "ros/ros.h"
 #include "sun_robot_msgs/ClikGetState.h"
 #include "sun_robot_msgs/ClikSetEndEffector.h"
 #include "sun_robot_msgs/ClikSetMode.h"
-#include "geometry_msgs/TransformStamped.h"
+#include "sun_robot_msgs/ClikSetSecondaryObj.h"
 #include "tf2/convert.h"
 
 namespace sun
@@ -19,6 +20,7 @@ private:
   ros::ServiceClient sc_set_mode_;
   ros::ServiceClient sc_get_state_;
   ros::ServiceClient sc_set_end_effector_;
+  ros::ServiceClient sc_set_second_obj_;
 
 public:
   //! nh is the a node handle in the clik namespace
@@ -40,6 +42,13 @@ public:
 
   //! n_pose_ee = end effector pose w.r.t. link n
   void set_end_effector(const geometry_msgs::Pose& n_pose_ee);
+
+  void set_second_objective_robot_joint_configuration(double second_obj_gain = -1,
+                                                      const std::vector<double>& joint_conf = {},
+                                                      const std::vector<double>& joint_weights = {});
+  void set_second_objective_robot_joint_configuration(double second_obj_gain = -1,
+                                                      const std::vector<double>& joint_conf = {},
+                                                      double joint_weights = -1);
 
   template <typename T>
   void toRobotBaseFrame(T in, T& out, std::string& out_frame_id)

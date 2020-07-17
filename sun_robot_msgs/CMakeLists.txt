@@ -60,6 +60,7 @@ add_service_files(
   ClikSetMode.srv
   ClikGetState.srv
   ClikSetEndEffector.srv
+  ClikSetSecondaryObj.srv
 )
 
 ## Generate actions in the 'action' folder

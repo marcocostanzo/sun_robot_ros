@@ -173,6 +173,110 @@ bool clikNode::getState_srv_cb(sun_robot_msgs::ClikGetState::Request& req, sun_r
   return true;
 }
 
+bool clikNode::setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Request& req,
+                                      sun_robot_msgs::ClikSetSecondaryObj::Response& res)
+{
+  /*
+    Check inputs
+  */
+  if (req.second_obj_joint_velocity_topic != "" &&
+      (req.desired_joint_configuration.size() != 0 || req.desired_joint_configuration_weights.size() != 0))
+  {
+    ROS_ERROR_STREAM(ros::this_node::getName() << " Second obj - Cannot set both topic and configuration objective");
+    res.success = false;
+    return true;
+  }
+
+  if (req.desired_joint_configuration.size() != 0 && req.desired_joint_configuration.size() != robot_.getNumJoints())
+  {
+    ROS_ERROR_STREAM(ros::this_node::getName() << " Second obj - Invalid desired_joint_configuration");
+    res.success = false;
+    return true;
+  }
+
+  if (req.desired_joint_configuration_weights.size() != 0 &&
+      req.desired_joint_configuration_weights.size() != robot_.getNumJoints() &&
+      req.desired_joint_configuration_weights.size() != 1)
+  {
+    ROS_ERROR_STREAM(ros::this_node::getName() << " Second obj - Invalid desired_joint_configuration_weights");
+    res.success = false;
+    return true;
+  }
+
+  for (const auto& w : req.desired_joint_configuration_weights)
+  {
+    if (w < 0)
+    {
+      ROS_ERROR_STREAM(ros::this_node::getName() << " Second obj - Invalid desired_joint_configuration_weights, "
+                                                    "someone is negative!");
+      res.success = false;
+      return true;
+    }
+  }
+
+  /*
+    Check not implemented
+  */
+  if (req.second_obj_joint_velocity_topic != "")
+  {
+    ROS_ERROR_STREAM(ros::this_node::getName() << " Second obj - Objective from topic not implemented yet");
+    res.success = false;
+    return true;
+  }
+
+  /*
+    Print
+  */
+  if (req.second_obj_gain == 0)
+  {
+    ROS_WARN_STREAM(ros::this_node::getName() << " Second Obj Disabled");
+  }
+  else if (req.second_obj_gain > 0)
+  {
+    ROS_WARN_STREAM(ros::this_node::getName() << " Second Obj Enabled");
+  }
+
+  if (req.second_obj_gain >= 0)
+    second_obj_gain_ = req.second_obj_gain;
+
+  if (req.second_obj_joint_velocity_topic != "")
+  {
+    /*
+      Impl
+    */
+    ROS_ERROR_STREAM(ros::this_node::getName() << " FATAL ERROR! I should not stay here");
+    res.success = false;
+    return true;
+  }
+
+  if (req.desired_joint_configuration.size() != 0)
+  {
+    jointDH_target_second_obj_ =
+        TooN::wrapVector(req.desired_joint_configuration.data(), req.desired_joint_configuration.size());
+
+    ROS_INFO_STREAM(ros::this_node::getName() << " New target_second_obj (Robot):\n"
+                                              << jointDH_target_second_obj_ << "\n");
+    jointDH_target_second_obj_ = robot_.joints_Robot2DH(jointDH_target_second_obj_);
+  }
+
+  if (req.desired_joint_configuration_weights.size() != 0)
+  {
+    if (req.desired_joint_configuration_weights.size() == 1)
+    {
+      joint_weights_second_obj_ = req.desired_joint_configuration_weights[0] * TooN::Ones(robot_.getNumJoints());
+    }
+    else
+    {
+      joint_weights_second_obj_ = TooN::wrapVector(req.desired_joint_configuration_weights.data(),
+                                                   req.desired_joint_configuration_weights.size());
+    }
+    ROS_INFO_STREAM(ros::this_node::getName() << " New weights_second_obj:\n" << joint_weights_second_obj_ << "\n");
+  }
+
+  res.success = true;
+  return true;
+}
+
 bool clikNode::setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request& req,
                                      sun_robot_msgs::ClikSetEndEffector::Response& res)
 {
@@ -243,6 +347,9 @@ bool clikNode::setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request& req, sun_rob
 
 void clikNode::run()
 {
+
+  refresh();
+
   // Initialize subscribers
   ros::Subscriber desired_pose_sub = nh_.subscribe("desired_pose", 1, &clikNode::desiredPose_cb, this);
   ros::Subscriber desired_twist_sub = nh_.subscribe("desired_twist", 1, &clikNode::desiredTwist_cb, this);
@@ -255,8 +362,8 @@ void clikNode::run()
   ros::ServiceServer serviceGetState = nh_.advertiseService("get_state", &clikNode::getState_srv_cb, this);
   ros::ServiceServer serviceSetEndEffector =
       nh_.advertiseService("set_end_effector", &clikNode::setEndEffector_srv_cb, this);
-
-  refresh();
+  ros::ServiceServer serviceSetSecondObj =
+      nh_.advertiseService("set_second_obj", &clikNode::setSecondaryObj_srv_cb, this);
 
   ros::Rate loop_rate(1.0 / Ts_);
 
