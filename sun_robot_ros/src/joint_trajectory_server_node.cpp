@@ -19,6 +19,14 @@ void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& go
   {
     t0 = ros::Time::now();
   }
+
+  if(goal->trajectory.points.size() == 0)
+  {
+    ROS_WARN("joint_traj_server: requested an empty traj -> the action is consideres immediatly succeeded");
+    as_joint_traj->setSucceeded();
+    return;
+  }
+
   ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
 
   sensor_msgs::JointState out_msg;
