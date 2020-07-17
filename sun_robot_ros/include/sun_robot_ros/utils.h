@@ -10,7 +10,8 @@ trajectory_msgs::JointTrajectory scaleTrajectoryInTime(trajectory_msgs::JointTra
 
 trajectory_msgs::JointTrajectory reverseTrajectory(const trajectory_msgs::JointTrajectory& traj);
 
-trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs);
+trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs,
+                                            bool skip_empty_traj = false);
 
 trajectory_msgs::JointTrajectory filterJointNames(const trajectory_msgs::JointTrajectory& traj,
                                                   const std::vector<std::string>& jont_names);
@@ -25,6 +26,19 @@ trajectory_msgs::JointTrajectory scaleTrajectoryInTime(trajectory_msgs::JointTra
   for (auto& point : traj.points)
   {
     point.time_from_start *= scale_factor;
+    for (auto& velocity : point.velocities)
+    {
+      velocity /= scale_factor;
+    }
+    double scale_factor_2 = pow(scale_factor, 2);
+    for (auto& acceleration : point.accelerations)
+    {
+      acceleration /= scale_factor_2;
+    }
+    for (auto& effort : point.effort)
+    {
+      effort /= scale_factor_2;
+    }
   }
   return traj;
 }
@@ -40,21 +54,41 @@ trajectory_msgs::JointTrajectory reverseTrajectory(const trajectory_msgs::JointT
   for (int p = (traj.points.size() - 1); p >= 0; p--)
   {
     trajectory_msgs::JointTrajectoryPoint traj_point = traj.points[p];
+    for (auto& velocity : traj_point.velocities)
+    {
+      velocity = -velocity;
+    }
     traj_point.time_from_start = total_duration - traj.points[p].time_from_start;
     traj_out.points.push_back(traj_point);
   }
   return traj_out;
 }
 
-trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs)
+trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::JointTrajectory>& trajs,
+                                            bool skip_empty_traj)
 {
   trajectory_msgs::JointTrajectory traj;
-  traj.header = trajs[0].header;
-  traj.joint_names = trajs[0].joint_names;
+
+  int i0 = 0;
 
   for (int i = 0; i < trajs.size(); i++)
   {
     trajectory_msgs::JointTrajectory in_traj_i = trajs[i];
+
+    if (skip_empty_traj && in_traj_i.points.size() == 0)
+    {
+      if (i == i0)
+      {
+        i0++;  // i0 is important for the first time_from_start
+      }
+      continue;
+    }
+
+    if (i == i0)
+    {
+      traj.header = trajs[i].header;
+      traj.joint_names = trajs[i].joint_names;
+    }
 
     // Assert the same joint names!
     if (traj.joint_names != in_traj_i.joint_names)
@@ -62,11 +96,11 @@ trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::J
       throw std::runtime_error("mergeTrajs: inconsistent joint names in traj vector");
     }
 
-    ros::Duration last_time_from_start = (i == 0) ? ros::Duration(0.0) : traj.points.back().time_from_start;
+    ros::Duration last_time_from_start = (i == i0) ? ros::Duration(0.0) : traj.points.back().time_from_start;
     for (int p = 0; p < in_traj_i.points.size(); p++)
     {
       // First point must have zero time_from_start & position = prev position, it will be discarded
-      if (p == 0 && i != 0)
+      if (p == 0 && i != i0)
       {
         if (in_traj_i.points[p].time_from_start != ros::Duration(0.0))
         {
@@ -81,7 +115,7 @@ trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::J
         continue;  // discard the point
       }
 
-      if (i != 0 && in_traj_i.points[p].time_from_start == ros::Duration(0.0))
+      if (i != i0 && in_traj_i.points[p].time_from_start == ros::Duration(0.0))
       {
         throw std::runtime_error("mergeTrajs: zero duration in traj " + std::to_string(i) + "[" + std::to_string(p) +
                                  "]");
