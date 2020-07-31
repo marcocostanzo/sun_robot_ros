@@ -122,7 +122,7 @@ void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& go
         out_msg.velocity[i] = dq[i];
       }
 
-      out_msg.header.stamp = time_now;
+      out_msg.header.stamp = ros::Time::now();
 
       joint_state_pub.publish(out_msg);
       as_joint_traj->publishFeedback(feedbk);
@@ -167,7 +167,7 @@ void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& go
         out_msg.velocity[i] = dq[i];
       }
 
-      out_msg.header.stamp = time_now;
+      out_msg.header.stamp = ros::Time::now();
 
       joint_state_pub.publish(out_msg);
       as_joint_traj->publishFeedback(feedbk);
@@ -180,6 +180,7 @@ void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& go
     if (ros::ok() && !as_joint_traj->isPreemptRequested())
     {
       // At the end publish the last traj point
+      last_state_no_junction.header.stamp = ros::Time::now();
       joint_state_pub.publish(last_state_no_junction);
     }
   }
