@@ -21,6 +21,48 @@ sensor_msgs::JointState filterJointNames(const sensor_msgs::JointState& j_state,
 
 //* IMPL *//
 
+namespace internal
+{
+template <typename T>
+std::vector<T> vector_diff(const std::vector<T>& v1, const std::vector<T>& v2)
+{
+  if (v1.size() != v2.size())
+  {
+    throw std::runtime_error("sun::internal::vector_diff vector have different size");
+  }
+  std::vector<T> out;
+  for (int i = 0; i < v1.size(); i++)
+  {
+    out.push_back(v1[i] - v2[i]);
+  }
+  return out;
+}
+
+template <typename T>
+T abs(T in)
+{
+  return fabs(in);
+}
+
+template <typename T>
+T vector_norm_2(const std::vector<T>& v)
+{
+  T out = 0;
+  for (int i = 0; i < v.size(); i++)
+  {
+    out += pow(v[i], 2);
+  }
+  return out;
+}
+
+template <typename T>
+T vector_norm(const std::vector<T>& v)
+{
+  return sqrt(vector_norm_2(v));
+}
+
+}  // namespace internal
+
 trajectory_msgs::JointTrajectory scaleTrajectoryInTime(trajectory_msgs::JointTrajectory traj, double scale_factor)
 {
   for (auto& point : traj.points)
@@ -109,8 +151,11 @@ trajectory_msgs::JointTrajectory mergeTrajs(const std::vector<trajectory_msgs::J
         }
         if (in_traj_i.points[p].positions != traj.points.back().positions)
         {
-          throw std::runtime_error("mergeTrajs: initial point in traj " + std::to_string(i) + " and final in traj " +
-                                   std::to_string(i - 1) + " not equals");
+          double distance =
+              internal::vector_norm(internal::vector_diff(in_traj_i.points[p].positions, traj.points.back().positions));
+          if (distance > 0.01)
+            throw std::runtime_error("mergeTrajs: initial point in traj " + std::to_string(i) + " and final in traj " +
+                                     std::to_string(i - 1) + " not equals. distance=" + std::to_string(distance) );
         }
         continue;  // discard the point
       }
