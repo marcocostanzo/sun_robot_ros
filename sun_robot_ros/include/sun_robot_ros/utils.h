@@ -1,5 +1,5 @@
 #ifndef SUN_ROBOT_ROS_UTILS
-#define SUN_ROBOT_ROS_ZUTILS
+#define SUN_ROBOT_ROS_UTILS
 
 #include "sensor_msgs/JointState.h"
 #include "trajectory_msgs/JointTrajectory.h"
