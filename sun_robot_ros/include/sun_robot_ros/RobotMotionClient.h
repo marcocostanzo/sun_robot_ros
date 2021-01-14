@@ -39,7 +39,7 @@ public:
 
   void waitForServers()
   {
-    //   clik_.waitForServers();
+    clik_.waitForServers();
     ac_joint_trajectory_.waitForServer();
     ac_line_segment_trajectory_.waitForServer();
   }
@@ -98,6 +98,33 @@ public:
     {
       throw std::runtime_error("Fail to execute JointTraj");
     }
+  }
+
+  void executeLineSegment(const geometry_msgs::Pose& desired_pose, const ros::Duration& duration,
+                          const ros::Time& t0 = ros::Time::now())
+  {
+    clik_.stop();
+
+    sun_robot_msgs::ClikGetState::Response clik_state = clik_.get_state();
+
+    sun_robot_msgs::LineSegmentTrajectoryGoal goal;
+    goal.initial_time = t0;
+    goal.traj_duration = duration;
+    goal.frame_id = clik_state.ee_pose.header.frame_id;
+    goal.initial_pose = clik_state.ee_pose.pose;
+    goal.final_pose = desired_pose;
+    goal.sampling_freq = traj_generators_sampling_freq;
+
+    clik_.mode_position();
+
+    ac_line_segment_trajectory_.sendGoalAndWait(goal);
+
+    if (ac_line_segment_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+    {
+      throw std::runtime_error("Fail to execute LineSegmentTraj");
+    }
+
+    clik_.stop();
   }
 };
 

@@ -28,6 +28,8 @@ public:
 
   ~ClikClient() = default;
 
+  void waitForServers();
+
   void set_mode(int8_t mode);
 
   void stop();

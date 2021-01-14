@@ -453,7 +453,8 @@ void clikNode::safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR)
   {
     ROS_ERROR_STREAM(ros::this_node::getName() << " CLIK ERROR ROBOT Velocity!! On joints:"
                                                << robot_.jointsNameFromBitMask(robot_.checkHardVelocityLimits(dqR)));
-    throw robot_joint_position_limits("exceededHardJointLimits");
+    ROS_ERROR_STREAM("throw DISABLED");
+    //throw robot_joint_position_limits("exceededHardJointLimits");
   }
 }
 
