@@ -3,4 +3,5 @@
 
 uint8 mode
 sensor_msgs/JointState robot_joints
+sensor_msgs/JointState dh_joints
 geometry_msgs/PoseStamped ee_pose

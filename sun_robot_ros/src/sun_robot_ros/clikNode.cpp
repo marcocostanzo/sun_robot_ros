@@ -115,6 +115,45 @@ clikNode::clikNode(Robot& robot, const std::function<TooN::Vector<>()>& get_join
     robot_.setnTe(n_T_e);
     ROS_INFO_STREAM(ros::this_node::getName() << " CLIK nTe: \n" << robot_.getnTe());
   }
+
+  // b_T_0
+  
+  if(nh_for_parmas.hasParam("b_T_0_position") || nh_for_parmas.hasParam("b_T_0_quaternion"))
+  {
+    if(!nh_for_parmas.hasParam("b_T_0_position") || !nh_for_parmas.hasParam("b_T_0_quaternion"))
+    {
+      throw std::runtime_error("The base transform must be fully defined");
+    }
+  }
+  if(nh_for_parmas.hasParam("b_T_0_position") && nh_for_parmas.hasParam("b_T_0_quaternion"))
+  {
+    TooN::Vector<3> b_T_0_position = getVectorFromParam(nh_for_parmas, "b_T_0_position", 3, TooN::Zeros(3));
+    TooN::Vector<4> b_T_0_quat_v =
+        getVectorFromParam(nh_for_parmas, "b_T_0_quaternion", 4, TooN::makeVector(1.0, 0.0, 0.0, 0.0));
+    UnitQuaternion b_T_0_quaternion(b_T_0_quat_v);
+    TooN::Matrix<4, 4> b_T_0 = transl(b_T_0_position);
+    b_T_0.slice<0, 0, 3, 3>() = b_T_0_quaternion.torot();
+    robot_.setbT0(b_T_0);
+  }
+  ROS_INFO_STREAM(ros::this_node::getName() << " CLIK bT0: \n" << robot_.getbT0());
+  
+}
+
+/* Getters */
+
+TooN::Vector<> clikNode::get_qR()
+{
+  return robot_.joints_DH2Robot(qDH_k_);
+}
+
+TooN::Vector<>& clikNode::get_qDH()
+{
+  return qDH_k_;
+}
+
+int clikNode::getMode()
+{
+  return mode_;
 }
 
 /* RUNNERS */
@@ -149,15 +188,22 @@ bool clikNode::getState_srv_cb(sun_robot_msgs::ClikGetState::Request& req, sun_r
     refresh();
   }
 
+  ros::Time time_now = ros::Time::now();
+
   res.mode = mode_;
 
-  res.robot_joints.header.stamp = ros::Time::now();
+  res.robot_joints.header.stamp = time_now;
+  res.dh_joints.header.stamp = time_now;
   res.robot_joints.name = ros_joint_names_;
+  res.dh_joints.name = ros_joint_names_;
   TooN::Vector<> qR = robot_.joints_DH2Robot(qDH_k_);
   for (int i = 0; i < qR.size(); i++)
+  {
     res.robot_joints.position.push_back(qR[i]);
+    res.dh_joints.position.push_back(qDH_k_[i]);
+  }
 
-  res.ee_pose.header.stamp = ros::Time::now();
+  res.ee_pose.header.stamp = time_now;
   res.ee_pose.header.frame_id = ros_base_frame_id_;
   TooN::Matrix<4, 4> b_T_e = robot_.fkine(qDH_k_);
   TooN::Vector<3> b_p_e = transl(b_T_e);

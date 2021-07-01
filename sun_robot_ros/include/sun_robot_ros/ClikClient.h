@@ -51,6 +51,9 @@ public:
   void set_second_objective_robot_joint_configuration(double second_obj_gain = -1,
                                                       const std::vector<double>& joint_conf = {},
                                                       double joint_weights = -1);
+  void set_second_objective_robot_joint_keep(double second_obj_gain = -1,
+                                             const std::vector<double>& joint_weights = {});
+                                                      
 
   template <typename T>
   void toRobotBaseFrame(T in, T& out, std::string& out_frame_id)

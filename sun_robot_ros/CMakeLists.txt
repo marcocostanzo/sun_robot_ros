@@ -108,7 +108,7 @@ actionlib
 catkin_package(
  INCLUDE_DIRS include
  LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp sun_robot_lib sun_ros_msgs sun_robot_msgs
+ CATKIN_DEPENDS roscpp sun_robot_lib sun_ros_msgs sun_robot_msgs actionlib
 #  DEPENDS system_lib
 )
 

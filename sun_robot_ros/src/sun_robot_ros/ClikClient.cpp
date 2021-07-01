@@ -108,4 +108,12 @@ void ClikClient::set_second_objective_robot_joint_configuration(double second_ob
   return set_second_objective_robot_joint_configuration(second_obj_gain, joint_conf, joint_weights_vec);
 }
 
+void ClikClient::set_second_objective_robot_joint_keep(double second_obj_gain,
+                                                      const std::vector<double>& joint_weights)
+{
+  set_second_objective_robot_joint_configuration(second_obj_gain,
+                                                  get_state().robot_joints.position,
+                                                  joint_weights);
+}
+
 }  // namespace sun

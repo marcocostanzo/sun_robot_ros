@@ -110,7 +110,7 @@ namespace sun
     }
 
     void executeLineSegment(const geometry_msgs::Pose &desired_pose, const ros::Duration &duration,
-                            const ros::Time &t0 = ros::Time::now())
+                            const ros::Time &t0 = ros::Time::now(), bool wait = true)
     {
       clik_.stop();
 
@@ -126,14 +126,21 @@ namespace sun
 
       clik_.mode_position();
 
-      ac_line_segment_trajectory_.sendGoalAndWait(goal);
+      if(wait) {
 
-      if (ac_line_segment_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
-      {
-        throw std::runtime_error("Fail to execute LineSegmentTraj");
+        ac_line_segment_trajectory_.sendGoalAndWait(goal);
+
+        if (ac_line_segment_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+        {
+          throw std::runtime_error("Fail to execute LineSegmentTraj");
+        }
+
+        clik_.stop();
+
       }
 
-      clik_.stop();
+      ac_line_segment_trajectory_.sendGoal(goal);
+    
     }
 
     void executeLineSegmentDeltaEE(const geometry_msgs::Pose &desired_pose, const ros::Duration &duration,

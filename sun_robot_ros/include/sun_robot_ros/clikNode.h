@@ -76,6 +76,13 @@ public:
 
   ~clikNode() = default;
 
+  /* Getters */
+  TooN::Vector<> get_qR();
+
+  TooN::Vector<>& get_qDH();
+
+  int getMode();
+
   /* RUNNERS */
 
   void refresh_cartesian_pose();
