@@ -210,13 +210,6 @@ add_library(${PROJECT_NAME}
 # catkin_add_nosetests(test)
 
 #############################################################
-add_executable(micro_joint_traj_server src/micro_joint_traj_server_node.cpp)
-add_dependencies(micro_joint_traj_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(micro_joint_traj_server
-  ${catkin_LIBRARIES}
-)
-#############################################################
-#############################################################
 add_executable(joint_trajectory_server src/joint_trajectory_server_node.cpp)
 add_dependencies(joint_trajectory_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(joint_trajectory_server
@@ -224,9 +217,9 @@ target_link_libraries(joint_trajectory_server
 )
 #############################################################
 #############################################################
-add_executable(line_segment_trajectory_server src/line_segment_trajectory_server_node.cpp)
-add_dependencies(line_segment_trajectory_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(line_segment_trajectory_server
+add_executable(cartesian_trajectory_server src/cartesian_trajectory_server_node.cpp)
+add_dependencies(cartesian_trajectory_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(cartesian_trajectory_server
   ${catkin_LIBRARIES}
 )
 #############################################################

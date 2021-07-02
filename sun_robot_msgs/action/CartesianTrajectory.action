@@ -1,0 +1,9 @@
+# Define the goal
+sun_robot_msgs/CartesianTrajectory trajectory
+float64 sampling_freq
+
+---
+# Define the result
+---
+# Define a feedback message
+duration time_left

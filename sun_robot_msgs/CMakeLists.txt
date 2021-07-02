@@ -48,11 +48,11 @@ sensor_msgs
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  CartesianTrajectoryPoint.msg
+  CartesianTrajectory.msg
+)
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -66,9 +66,8 @@ add_service_files(
 ## Generate actions in the 'action' folder
 add_action_files(
   FILES
-  MicroJointTraj.action
   JointTrajectory.action
-  LineSegmentTrajectory.action
+  CartesianTrajectory.action
 )
 
 ## Generate added messages and services with any dependencies listed here

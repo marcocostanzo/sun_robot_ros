@@ -4,7 +4,7 @@
 
 #include "actionlib/client/simple_action_client.h"
 #include "sun_robot_msgs/JointTrajectoryAction.h"
-#include "sun_robot_msgs/LineSegmentTrajectoryAction.h"
+#include "sun_robot_msgs/CartesianTrajectoryAction.h"
 #include "sun_robot_ros/ClikClient.h"
 #include "sun_robot_ros/utils.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
@@ -13,7 +13,7 @@ namespace sun
 {
   /*!
     This class wraps all the sun robot ros interface for a specific robot
-    it uses ClikClient, LineSegmentTraj, JointTraj
+    it uses ClikClient, CartesianTraj, JointTraj
 */
   class RobotMotionClient
   {
@@ -23,13 +23,13 @@ namespace sun
     ros::NodeHandle nh_;
     ClikClient clik_;
     actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction> ac_joint_trajectory_;
-    actionlib::SimpleActionClient<sun_robot_msgs::LineSegmentTrajectoryAction> ac_line_segment_trajectory_;
+    actionlib::SimpleActionClient<sun_robot_msgs::CartesianTrajectoryAction> ac_cartesian_trajectory_;
 
     double traj_generators_sampling_freq = 1000.0;
     double junction_time_constant = 1.0;
 
     RobotMotionClient(const ros::NodeHandle &nh)
-        : nh_(nh), clik_(ros::NodeHandle(nh_, "clik")), ac_joint_trajectory_(nh_, "joint_traj_action", true), ac_line_segment_trajectory_(nh_, "line_segment_action", true)
+        : nh_(nh), clik_(ros::NodeHandle(nh_, "clik")), ac_joint_trajectory_(nh_, "joint_traj_action", true), ac_cartesian_trajectory_(nh_, "cartesian_traj_action", true)
     {
     }
 
@@ -39,11 +39,33 @@ namespace sun
     {
       clik_.waitForServers();
       ac_joint_trajectory_.waitForServer();
-      ac_line_segment_trajectory_.waitForServer();
+      ac_cartesian_trajectory_.waitForServer();
     }
 
-    bool jointTrajWaitForResult(){
-      return ac_joint_trajectory_.waitForResult();
+    void goTo(const std::vector<double> &qf, double max_joint_mean_vel, const ros::Time &t0 = ros::Time::now(), bool wait = true, const ros::Duration& min_duration = ros::Duration(0.1))
+    {
+      if(max_joint_mean_vel<=0)
+      {
+        throw std::runtime_error("goTo - max_joint_mean_vel has to be positive");
+      }
+      clik_.stop();
+      //find max joint distance
+      sensor_msgs::JointState q0 = clik_.get_state().robot_joints;
+      double max_distance = 0.0;
+      for(int i=0; i<q0.position.size(); i++)
+      {
+        double distance = fabs(q0.position[i] - qf[i]);
+        if(distance > max_distance)
+        {
+          max_distance = distance;
+        }
+      }
+      ros::Duration duration(max_distance/max_joint_mean_vel);
+      if(duration <= min_duration)
+      {
+        duration = min_duration;
+      }
+      return goTo(qf, duration, t0, wait);
     }
 
     void goTo(const std::vector<double> &qf, const ros::Duration &duration, const ros::Time &t0 = ros::Time::now(), bool wait = true)
@@ -71,7 +93,7 @@ namespace sun
       goal.sampling_freq = traj_generators_sampling_freq;
       goal.use_exponential_junction = false;
 
-      if(wait)
+      if (wait)
       {
         ac_joint_trajectory_.sendGoalAndWait(goal);
         if (ac_joint_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
@@ -83,11 +105,10 @@ namespace sun
       {
         ac_joint_trajectory_.sendGoal(goal);
       }
-      
     }
 
     void executeJointTraj(trajectory_msgs::JointTrajectory traj, bool use_exponential_junction = false,
-                          const ros::Time &t0 = ros::Time::now())
+                          const ros::Time &t0 = ros::Time::now(), bool wait = true)
     {
       clik_.stop();
       sensor_msgs::JointState q0 = clik_.get_state().robot_joints;
@@ -101,50 +122,103 @@ namespace sun
       goal.initial_joints = q0.position;
       goal.junction_time_constant = junction_time_constant;
 
-      ac_joint_trajectory_.sendGoalAndWait(goal);
-
-      if (ac_joint_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+      if (wait)
       {
-        throw std::runtime_error("Fail to execute JointTraj");
+        ac_joint_trajectory_.sendGoalAndWait(goal);
+
+        if (ac_joint_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+        {
+          throw std::runtime_error("Fail to execute JointTraj");
+        }
+      }
+      else
+      {
+        ac_joint_trajectory_.sendGoal(goal);
       }
     }
 
-    void executeLineSegment(const geometry_msgs::Pose &desired_pose, const ros::Duration &duration,
-                            const ros::Time &t0 = ros::Time::now(), bool wait = true)
+    void executeCartesianTraj(sun_robot_msgs::CartesianTrajectory traj,
+                              const ros::Time &t0 = ros::Time::now(), bool wait = true)
+    {
+      clik_.stop();
+      sun_robot_msgs::ClikGetState::Response clik_state = clik_.get_state();
+
+      sun_robot_msgs::CartesianTrajectoryGoal goal;
+      goal.sampling_freq = traj_generators_sampling_freq;
+      goal.trajectory = traj; //NOTE: SET T0 _AFTER_ THIS
+      goal.trajectory.header.stamp = t0;
+      goal.trajectory.header.frame_id = clik_state.ee_pose.header.frame_id;
+
+      clik_.mode_position();
+
+      if (wait)
+      {
+        ac_cartesian_trajectory_.sendGoalAndWait(goal);
+        clik_.stop();
+
+        if (ac_cartesian_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+        {
+          throw std::runtime_error("Fail to execute CartesianTraj");
+        }
+      }
+      else
+      {
+        ac_cartesian_trajectory_.sendGoal(goal);
+      }
+    }
+
+    void goTo(const geometry_msgs::Pose &desired_pose, const ros::Duration &duration,
+              const ros::Time &t0 = ros::Time::now(), bool wait = true)
     {
       clik_.stop();
 
       sun_robot_msgs::ClikGetState::Response clik_state = clik_.get_state();
 
-      sun_robot_msgs::LineSegmentTrajectoryGoal goal;
-      goal.initial_time = t0;
-      goal.traj_duration = duration;
-      goal.frame_id = clik_state.ee_pose.header.frame_id;
-      goal.initial_pose = clik_state.ee_pose.pose;
-      goal.final_pose = desired_pose;
+      sun_robot_msgs::CartesianTrajectoryGoal goal;
+      goal.trajectory.header.stamp = t0;
       goal.sampling_freq = traj_generators_sampling_freq;
+      goal.trajectory.header.frame_id = clik_state.ee_pose.header.frame_id;
+
+      goal.trajectory.points.resize(2);
+
+      geometry_msgs::Twist twist_zero;
+      twist_zero.linear.x = 0.0;
+      twist_zero.linear.y = 0.0;
+      twist_zero.linear.z = 0.0;
+      twist_zero.angular.x = 0.0;
+      twist_zero.angular.y = 0.0;
+      twist_zero.angular.z = 0.0;
+
+      goal.trajectory.points[0].time_from_start = ros::Duration(0.0);
+      goal.trajectory.points[0].pose = clik_state.ee_pose.pose;
+      goal.trajectory.points[0].velocity = twist_zero;
+      goal.trajectory.points[0].acceleration = twist_zero;
+
+      goal.trajectory.points[1].time_from_start = duration;
+      goal.trajectory.points[1].pose = desired_pose;
+      goal.trajectory.points[1].velocity = twist_zero;
+      goal.trajectory.points[1].acceleration = twist_zero;
 
       clik_.mode_position();
 
-      if(wait) {
+      if (wait)
+      {
 
-        ac_line_segment_trajectory_.sendGoalAndWait(goal);
+        ac_cartesian_trajectory_.sendGoalAndWait(goal);
 
-        if (ac_line_segment_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
+        if (ac_cartesian_trajectory_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED)
         {
           throw std::runtime_error("Fail to execute LineSegmentTraj");
         }
 
         clik_.stop();
-
       }
 
-      ac_line_segment_trajectory_.sendGoal(goal);
-    
+      ac_cartesian_trajectory_.sendGoal(goal);
     }
 
-    void executeLineSegmentDeltaEE(const geometry_msgs::Pose &desired_pose, const ros::Duration &duration,
-                                 const ros::Time &t0 = ros::Time::now())
+    void goToDeltaEE(const geometry_msgs::Pose &desired_pose, const ros::Duration &duration,
+                     const ros::Time &t0 = ros::Time::now(), bool wait = true)
     {
       clik_.stop();
 
@@ -157,8 +231,8 @@ namespace sun
       geometry_msgs::Pose desired_pose_base;
       tf2::doTransform(desired_pose, desired_pose_base, w_Tr_g);
 
-      return executeLineSegment(desired_pose_base, duration,
-                                t0);
+      return goTo(desired_pose_base, duration,
+                  t0, wait);
     }
 
     static void poseStampedToTransformStamped(const geometry_msgs::PoseStamped &pose,
