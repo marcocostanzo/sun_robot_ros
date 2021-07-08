@@ -19,6 +19,15 @@
 
 namespace sun
 {
+TooN::Vector<> getTooNFromSTD(const std::vector<double> vec_std)
+{
+  TooN::Vector<> v_toon = TooN::Zeros(vec_std.size());
+  for(int i=0; i<vec_std.size(); i++)
+  {
+    v_toon[i] = vec_std[i];
+  }
+  return v_toon;
+}
 TooN::Vector<> getVectorFromParam(const ros::NodeHandle& nh, const std::string& param_str, int expected_size,
                                   const TooN::Vector<>& default_value)
 {
@@ -31,7 +40,7 @@ TooN::Vector<> getVectorFromParam(const ros::NodeHandle& nh, const std::string& 
       ROS_ERROR_STREAM(ros::this_node::getName() << " CLIK Error: " << param_str << " size mismatch");
       throw robot_invalid_parameter(param_str + " size mismatch");
     }
-    return TooN::wrapVector(vec_std.data(), vec_std.size());
+    return getTooNFromSTD(vec_std);
   }
   else
   {
@@ -64,7 +73,6 @@ clikNode::clikNode(Robot& robot, const std::function<TooN::Vector<>()>& get_join
   , joint_publish_fcn_(joint_publish_fcn)
   , jointDH_target_second_obj_(TooN::Zeros(robot_.getNumJoints()))
   , joint_weights_second_obj_(TooN::Zeros(robot_.getNumJoints()))
-  , cartesian_mask_(TooN::Ones)
   , qDH_k_(TooN::Zeros(robot_.getNumJoints()))
   , mode_(sun_robot_msgs::ClikSetMode::Request::MODE_STOP)
 {
@@ -101,8 +109,24 @@ clikNode::clikNode(Robot& robot, const std::function<TooN::Vector<>()>& get_join
   ROS_INFO_STREAM(ros::this_node::getName() << " CLIK Target conf weights: " << joint_weights_second_obj_);
 
   // cartesian_mask
-  cartesian_mask_ = getVectorFromParam(nh_for_parmas, "cartesian_mask", robot_.getNumJoints(), TooN::Ones(6));
-  ROS_INFO_STREAM(ros::this_node::getName() << " CLIK Cartesian Mask: " << cartesian_mask_);
+  if (nh_for_parmas.hasParam("joint_mask"))
+  {
+    nh_for_parmas.getParam("joint_mask", joint_mask_);
+    if (joint_mask_.size() != robot_.getNumJoints())
+    {
+      ROS_ERROR_STREAM(ros::this_node::getName() << " CLIK Error: " << "joint_mask" << " size mismatch");
+      throw robot_invalid_parameter("joint_mask size mismatch");
+    }
+  }
+  else
+  {
+    joint_mask_.clear();
+    for(int i=0; i<robot_.getNumJoints(); i++)
+    {
+      joint_mask_.push_back(true);
+    }
+  }
+  ROS_INFO_STREAM(ros::this_node::getName() << " CLIK Joint Mask: " << joint_mask_[0]); // TODO: print
 
   // n_T_e
   {
@@ -297,8 +321,7 @@ bool clikNode::setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Reque
 
   if (req.desired_joint_configuration.size() != 0)
   {
-    jointDH_target_second_obj_ =
-        TooN::wrapVector(req.desired_joint_configuration.data(), req.desired_joint_configuration.size());
+    jointDH_target_second_obj_ = getTooNFromSTD(req.desired_joint_configuration);
 
     ROS_INFO_STREAM(ros::this_node::getName() << " New target_second_obj (Robot):\n"
                                               << jointDH_target_second_obj_ << "\n");
@@ -313,8 +336,7 @@ bool clikNode::setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Reque
     }
     else
     {
-      joint_weights_second_obj_ = TooN::wrapVector(req.desired_joint_configuration_weights.data(),
-                                                   req.desired_joint_configuration_weights.size());
+      joint_weights_second_obj_ = getTooNFromSTD(req.desired_joint_configuration_weights);
     }
     ROS_INFO_STREAM(ros::this_node::getName() << " New weights_second_obj:\n" << joint_weights_second_obj_ << "\n");
   }
@@ -464,7 +486,7 @@ void clikNode::clik_core(double error_gain, const TooN::Vector<3>& pd_k, const U
                   quat_k_1,          // <- quaternion at last time (to ensure continuity)
                   dpd_k,             // <- desired translational velocity
                   omega_d_k,         //<- desired angular velocity
-                  cartesian_mask_,   // <- mask, bitmask, if the i-th element is 0 then the i-th operative space
+                  joint_mask_,   // <- mask, bitmask, if the i-th element is 0 then the i-th operative space
                                      // coordinate will not be used in the error computation
                   error_gain,        // <- CLIK Gain
                   Ts_,               // <- Ts, sampling time

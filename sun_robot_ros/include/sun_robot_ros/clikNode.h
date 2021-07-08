@@ -52,7 +52,7 @@ private:
   TooN::Vector<6> cartesian_error_k_;
 
   //! Params
-  TooN::Vector<6, int> cartesian_mask_;
+  std::vector<bool> joint_mask_;
   double error_gain_;  // should be gain/Ts
   double Ts_;
   double second_obj_gain_;  // should be gain/Ts

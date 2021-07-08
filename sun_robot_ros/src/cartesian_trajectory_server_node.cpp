@@ -16,6 +16,26 @@ std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajector
 ros::Publisher pose_pub;
 ros::Publisher twist_pub;
 
+TooN::Vector<3> toTooN(const geometry_msgs::Point &p)
+{
+  return TooN::makeVector(p.x, p.y, p.z);
+}
+
+TooN::Vector<3> toTooN(const geometry_msgs::Vector3 &p)
+{
+  return TooN::makeVector(p.x, p.y, p.z);
+}
+
+double projectOnAxis(const TooN::Vector<3> &vec, const TooN::Vector<3> &axis)
+{
+  double n = norm(axis);
+  if (n < 10.0 * std::numeric_limits<double>::epsilon())
+  {
+    return 0.0;
+  }
+  return vec * axis / n;
+}
+
 void traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal)
 {
 
@@ -72,21 +92,23 @@ void traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal
     sun::AngVec Delta_angvec = Delta_Q.toangvec();
 
     ros::Duration prev_next_duration = traj_point_next.time_from_start - traj_point_prev.time_from_start;
-    // TODO: define these numbers
-    double prev_velocity_linear = 0.0;
-    double next_velocity_linear = 0.0;
-    double prec_acceleration_linear = 0.0;
-    double next_acceleration_linear = 0.0;
-    double prev_velocity_angular = 0.0;
-    double next_velocity_angular = 0.0;
-    double prec_acceleration_angular = 0.0;
-    double next_acceleration_angular = 0.0;
+    
+    // velocities and acceleration are simply projected on the direction axes between i-1 and i
+    TooN::Vector<3> linearDirectionAxis = toTooN(traj_point_next.pose.position) - toTooN(traj_point_prev.pose.position);
+    double prev_velocity_linear = projectOnAxis(toTooN(traj_point_prev.velocity.linear), linearDirectionAxis);
+    double next_velocity_linear = projectOnAxis(toTooN(traj_point_next.velocity.linear), linearDirectionAxis);
+    double prev_acceleration_linear = projectOnAxis(toTooN(traj_point_prev.acceleration.linear), linearDirectionAxis);
+    double next_acceleration_linear = projectOnAxis(toTooN(traj_point_next.acceleration.linear), linearDirectionAxis);
+    double prev_velocity_angular = projectOnAxis(toTooN(traj_point_prev.velocity.angular), Delta_angvec.getVec());
+    double next_velocity_angular = projectOnAxis(toTooN(traj_point_next.velocity.angular), Delta_angvec.getVec());
+    double prec_acceleration_angular = projectOnAxis(toTooN(traj_point_prev.acceleration.angular), Delta_angvec.getVec());
+    double next_acceleration_angular = projectOnAxis(toTooN(traj_point_next.acceleration.angular), Delta_angvec.getVec());
 
     sun::Cartesian_Independent_Traj traj(
         sun::Line_Segment_Traj(
             TooN::makeVector(traj_point_prev.pose.position.x, traj_point_prev.pose.position.y, traj_point_prev.pose.position.z),
             TooN::makeVector(traj_point_next.pose.position.x, traj_point_next.pose.position.y, traj_point_next.pose.position.z),
-            sun::Quintic_Poly_Traj(prev_next_duration.toSec(), 0.0, 1.0, (t0 + traj_point_prev.time_from_start).toSec(), prev_velocity_linear, next_velocity_linear, prec_acceleration_linear, next_acceleration_linear)),
+            sun::Quintic_Poly_Traj(prev_next_duration.toSec(), 0.0, 1.0, (t0 + traj_point_prev.time_from_start).toSec(), prev_velocity_linear, next_velocity_linear, prev_acceleration_linear, next_acceleration_linear)),
         sun::Rotation_Const_Axis_Traj(
             quat_prev, Delta_angvec.getVec(),
             sun::Quintic_Poly_Traj(prev_next_duration.toSec(), 0.0, Delta_angvec.getAng(), (t0 + traj_point_prev.time_from_start).toSec(), prev_velocity_angular, next_velocity_angular, prec_acceleration_angular, next_acceleration_angular)));
@@ -156,7 +178,7 @@ int main(int argc, char *argv[])
 
   as_traj = std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajectoryAction>>(
       new actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajectoryAction>(nh_public, action_name_str,
-                                                                                     traj_execute_cb, false));
+                                                                                   traj_execute_cb, false));
 
   as_traj->start();
 
