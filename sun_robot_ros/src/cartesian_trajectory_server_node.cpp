@@ -59,7 +59,7 @@ void traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal
     return;
   }
 
-  std::cout << "joint traj start!" << std::endl;
+  std::cout << "cartesian traj start!" << std::endl;
   ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
 
   geometry_msgs::PoseStamped out_pose;

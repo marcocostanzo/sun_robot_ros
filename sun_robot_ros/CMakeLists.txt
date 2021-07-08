@@ -125,7 +125,7 @@ ${catkin_INCLUDE_DIRS}
 
 ## Declare a C++ library
 add_library(${PROJECT_NAME}
-  src/${PROJECT_NAME}/clikNode.cpp
+  src/${PROJECT_NAME}/ClikNode.cpp
   src/${PROJECT_NAME}/ClikClient.cpp
 )
 

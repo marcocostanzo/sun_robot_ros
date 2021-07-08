@@ -15,7 +15,7 @@
     <arg name="joint_target_robot_second_obj" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
     <arg name="joint_weights_second_obj" default="[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"/>
 
-    <arg name="cartesian_mask" default="[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]"/>
+    <arg name="fixed_joints_names" default="[]"/>
 
     <arg name="n_T_e_position" default="[0.0, 0.0, 0.1]"/>
     <arg name="n_T_e_quaternion" default="[1.0, 0.0, 0.0, 0.0]"/>
@@ -37,7 +37,7 @@
         <rosparam param="joint_target_robot_second_obj" subst_value="true">$(arg joint_target_robot_second_obj)</rosparam>
         <rosparam param="joint_weights_second_obj" subst_value="true">$(arg joint_weights_second_obj)</rosparam>
 
-        <rosparam param="cartesian_mask" subst_value="true">$(arg cartesian_mask)</rosparam>
+        <rosparam param="fixed_joints_names" subst_value="true">$(arg cartesian_mask)</rosparam>
 
         <rosparam param="n_T_e_position" subst_value="true">$(arg n_T_e_position)</rosparam>
         <rosparam param="n_T_e_quaternion" subst_value="true">$(arg n_T_e_quaternion)</rosparam>

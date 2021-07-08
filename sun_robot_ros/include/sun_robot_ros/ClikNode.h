@@ -21,7 +21,9 @@
 
 #include "sun_ros_msgs/Float64Stamped.h"
 
-#include <sun_robot_lib/Robot.h>
+#include <sun_robot_lib/Clik6DQuaternionSingleRobot.h>
+#include <sun_robot_lib/JointVelocityIntegrator.h>
+#include <sun_robot_lib/JointVelocityTargetConfiguration.h>
 
 #include "sun_robot_ros/exceptions.h"
 
@@ -32,62 +34,52 @@
 
 namespace sun
 {
-class clikNode
+class ClikNode
 {
 private:
-  //! Robot object
-  Robot& robot_;
+
+protected:
 
   //! state
-  int mode_;
-  TooN::Vector<> qDH_k_;
-  UnitQuaternion quat_k_1;
-  //! zoh
-  TooN::Vector<3> pd_k_;
-  UnitQuaternion quat_d_k_;
-  TooN::Vector<3> dpd_k_;
-  TooN::Vector<3> omega_d_k_;
+  unsigned int mode_ = sun_robot_msgs::ClikSetMode::Request::MODE_STOP;
 
-  //! Outputs
-  TooN::Vector<6> cartesian_error_k_;
-
-  //! Params
-  std::vector<bool> joint_mask_;
-  double error_gain_;  // should be gain/Ts
-  double Ts_;
-  double second_obj_gain_;  // should be gain/Ts
-  TooN::Vector<> jointDH_target_second_obj_;
-  TooN::Vector<> joint_weights_second_obj_;
-
-  //! Cbs
-  std::function<TooN::Vector<>()> get_joint_position_fcn_;
-  std::function<void(TooN::Vector<>, TooN::Vector<>)> joint_publish_fcn_;
-
+  std::shared_ptr<JointVelocityTargetConfiguration> secondObjTargetConfig_;
+  std::shared_ptr<Clik6DQuaternionSingleRobot> clik_;
+  JointVelocityIntegrator clik_integrator_;
+  
   //! ROS
   ros::NodeHandle nh_;
   std::vector<std::string> ros_joint_names_;
   std::string ros_base_frame_id_;
 
+  //! Cbs
+  virtual TooN::Vector<> getJointPositionRobot() = 0;
+  virtual void publishJointRobot(const TooN::Vector<>& qR,const TooN::Vector<>& qR_dot) = 0;
+
+  // Note: for velocity mode it is sufficient clik_gain_=0;
+  void clik_core(ros::Publisher& cartesian_error_pub);
+
 public:
-  clikNode(Robot& robot, const std::function<TooN::Vector<>()>& get_joint_position_fcn,
-           const std::function<void(TooN::Vector<>, TooN::Vector<>)>& joint_publish_fcn,
-           const ros::NodeHandle& nh_for_topics = ros::NodeHandle("clik"),
+  ClikNode(const std::shared_ptr<Robot> &robot,
+                     const ros::NodeHandle& nh_for_topics = ros::NodeHandle("clik"),
            const ros::NodeHandle& nh_for_parmas = ros::NodeHandle("~"));
 
-  ~clikNode() = default;
+  ~ClikNode() = default;
 
   /* Getters */
-  TooN::Vector<> get_qR();
+  // TooN::Vector<> get_qR();
 
-  TooN::Vector<>& get_qDH();
+  // TooN::Vector<>& get_qDH();
+
+  std::vector<unsigned int> jointNamesToJointIndex(const std::vector<std::string>& joint_names) const;
 
   int getMode();
 
   /* RUNNERS */
 
-  void refresh_cartesian_pose();
+  void reset_desired_cartesian_pose();
 
-  void refresh();
+  void reset_and_sync_with_robot();
 
   bool getState_srv_cb(sun_robot_msgs::ClikGetState::Request& req, sun_robot_msgs::ClikGetState::Response& res);
 
@@ -100,10 +92,6 @@ public:
   bool setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request& req, sun_robot_msgs::ClikSetMode::Response& res);
 
   void run();
-
-  // Note: for velocity mode it is sufficient clik_gain_=0;
-  void clik_core(double error_gain, const TooN::Vector<3>& pd_k, const UnitQuaternion& quat_d_k,
-                 const TooN::Vector<3>& dpd_k, const TooN::Vector<3>& omega_d_k);
 
   void safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR);
 
