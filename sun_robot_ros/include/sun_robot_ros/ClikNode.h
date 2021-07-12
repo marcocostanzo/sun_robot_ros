@@ -29,24 +29,21 @@
 
 #include "sun_robot_msgs/ClikGetState.h"
 #include "sun_robot_msgs/ClikSetEndEffector.h"
+#include "sun_robot_msgs/ClikSetFixedJoints.h"
 #include "sun_robot_msgs/ClikSetMode.h"
 #include "sun_robot_msgs/ClikSetSecondaryObj.h"
 
-namespace sun
-{
-class ClikNode
-{
+namespace sun {
+class ClikNode {
 private:
-
 protected:
-
   //! state
   unsigned int mode_ = sun_robot_msgs::ClikSetMode::Request::MODE_STOP;
 
   std::shared_ptr<JointVelocityTargetConfiguration> secondObjTargetConfig_;
   std::shared_ptr<Clik6DQuaternionSingleRobot> clik_;
   JointVelocityIntegrator clik_integrator_;
-  
+
   //! ROS
   ros::NodeHandle nh_;
   std::vector<std::string> ros_joint_names_;
@@ -54,15 +51,16 @@ protected:
 
   //! Cbs
   virtual TooN::Vector<> getJointPositionRobot() = 0;
-  virtual void publishJointRobot(const TooN::Vector<>& qR,const TooN::Vector<>& qR_dot) = 0;
+  virtual void publishJointRobot(const TooN::Vector<> &qR,
+                                 const TooN::Vector<> &qR_dot) = 0;
 
   // Note: for velocity mode it is sufficient clik_gain_=0;
-  void clik_core(ros::Publisher& cartesian_error_pub);
+  void clik_core(ros::Publisher &cartesian_error_pub);
 
 public:
   ClikNode(const std::shared_ptr<Robot> &robot,
-                     const ros::NodeHandle& nh_for_topics = ros::NodeHandle("clik"),
-           const ros::NodeHandle& nh_for_parmas = ros::NodeHandle("~"));
+           const ros::NodeHandle &nh_for_topics = ros::NodeHandle("clik"),
+           const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
 
   ~ClikNode() = default;
 
@@ -71,7 +69,8 @@ public:
 
   // TooN::Vector<>& get_qDH();
 
-  std::vector<unsigned int> jointNamesToJointIndex(const std::vector<std::string>& joint_names) const;
+  std::vector<unsigned int>
+  jointNamesToJointIndex(const std::vector<std::string> &joint_names) const;
 
   int getMode();
 
@@ -81,23 +80,29 @@ public:
 
   void reset_and_sync_with_robot();
 
-  bool getState_srv_cb(sun_robot_msgs::ClikGetState::Request& req, sun_robot_msgs::ClikGetState::Response& res);
+  bool getState_srv_cb(sun_robot_msgs::ClikGetState::Request &req,
+                       sun_robot_msgs::ClikGetState::Response &res);
 
-  bool setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Request& req,
-                              sun_robot_msgs::ClikSetSecondaryObj::Response& res);
+  bool
+  setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Request &req,
+                         sun_robot_msgs::ClikSetSecondaryObj::Response &res);
 
-  bool setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request& req,
-                             sun_robot_msgs::ClikSetEndEffector::Response& res);
+  bool setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request &req,
+                             sun_robot_msgs::ClikSetEndEffector::Response &res);
 
-  bool setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request& req, sun_robot_msgs::ClikSetMode::Response& res);
+  bool setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request &req,
+                      sun_robot_msgs::ClikSetMode::Response &res);
+
+  bool setFixedJoints_srv_cb(sun_robot_msgs::ClikSetFixedJoints::Request &req,
+                             sun_robot_msgs::ClikSetFixedJoints::Response &res);
 
   void run();
 
-  void safety_check(const TooN::Vector<>& qR, const TooN::Vector<>& dqR);
+  void safety_check(const TooN::Vector<> &qR, const TooN::Vector<> &dqR);
 
-  void desiredPose_cb(const geometry_msgs::PoseStamped::ConstPtr& pose_msg);
+  void desiredPose_cb(const geometry_msgs::PoseStamped::ConstPtr &pose_msg);
 
-  void desiredTwist_cb(const geometry_msgs::TwistStamped::ConstPtr& twist_msg);
+  void desiredTwist_cb(const geometry_msgs::TwistStamped::ConstPtr &twist_msg);
 };
 
-}  // Namespace sun
+} // Namespace sun
