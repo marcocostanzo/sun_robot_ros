@@ -87,6 +87,7 @@ void traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal
     sun::UnitQuaternion quat_next(
         traj_point_next.pose.orientation.w,
         TooN::makeVector(traj_point_next.pose.orientation.x, traj_point_next.pose.orientation.y, traj_point_next.pose.orientation.z));
+    quat_next = sun::UnitQuaternion(quat_next, quat_prev); //continuity
 
     sun::UnitQuaternion Delta_Q = quat_next * inv(quat_prev);
     sun::AngVec Delta_angvec = Delta_Q.toangvec();

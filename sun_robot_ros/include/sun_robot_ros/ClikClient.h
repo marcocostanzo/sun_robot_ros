@@ -36,6 +36,8 @@ public:
 
   void set_fixed_joints(const std::vector<unsigned int> &fixed_joints_index);
 
+  void set_no_fixed_joints();
+
   void stop();
 
   void mode_position();

@@ -503,56 +503,69 @@ bool ClikNode::setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request &req,
 
 void ClikNode::run() {
 
-  reset_and_sync_with_robot();
+  try {
 
-  // Initialize subscribers
-  ros::Subscriber desired_pose_sub =
-      nh_.subscribe("desired_pose", 1, &ClikNode::desiredPose_cb, this);
-  ros::Subscriber desired_twist_sub =
-      nh_.subscribe("desired_twist", 1, &ClikNode::desiredTwist_cb, this);
+    reset_and_sync_with_robot();
 
-  // Publish error
-  ros::Publisher cartesian_error_pub =
-      nh_.advertise<sun_ros_msgs::Float64Stamped>("cartesian_error", 1);
+    // Initialize subscribers
+    ros::Subscriber desired_pose_sub =
+        nh_.subscribe("desired_pose", 1, &ClikNode::desiredPose_cb, this);
+    ros::Subscriber desired_twist_sub =
+        nh_.subscribe("desired_twist", 1, &ClikNode::desiredTwist_cb, this);
 
-  // Init Services
-  ros::ServiceServer serviceSetMode =
-      nh_.advertiseService("set_mode", &ClikNode::setMode_srv_cb, this);
-  ros::ServiceServer serviceGetState =
-      nh_.advertiseService("get_state", &ClikNode::getState_srv_cb, this);
-  ros::ServiceServer serviceSetEndEffector = nh_.advertiseService(
-      "set_end_effector", &ClikNode::setEndEffector_srv_cb, this);
-  ros::ServiceServer serviceSetSecondObj = nh_.advertiseService(
-      "set_second_obj", &ClikNode::setSecondaryObj_srv_cb, this);
-  ros::ServiceServer serviceSetFixedJoints = nh_.advertiseService(
-      "set_fixed_joints", &ClikNode::setFixedJoints_srv_cb, this);
+    // Publish error
+    ros::Publisher cartesian_error_pub =
+        nh_.advertise<sun_ros_msgs::Float64Stamped>("cartesian_error", 1);
 
-  ros::Rate loop_rate(1.0 / clik_integrator_.Ts_);
+    // Init Services
+    ros::ServiceServer serviceSetMode =
+        nh_.advertiseService("set_mode", &ClikNode::setMode_srv_cb, this);
+    ros::ServiceServer serviceGetState =
+        nh_.advertiseService("get_state", &ClikNode::getState_srv_cb, this);
+    ros::ServiceServer serviceSetEndEffector = nh_.advertiseService(
+        "set_end_effector", &ClikNode::setEndEffector_srv_cb, this);
+    ros::ServiceServer serviceSetSecondObj = nh_.advertiseService(
+        "set_second_obj", &ClikNode::setSecondaryObj_srv_cb, this);
+    ros::ServiceServer serviceSetFixedJoints = nh_.advertiseService(
+        "set_fixed_joints", &ClikNode::setFixedJoints_srv_cb, this);
 
-  while (ros::ok()) {
-    loop_rate.sleep();
-    ros::spinOnce();
+    ros::Rate loop_rate(1.0 / clik_integrator_.Ts_);
 
-    switch (mode_) {
-    case sun_robot_msgs::ClikSetMode::Request::MODE_STOP: {
-      continue;
+    while (ros::ok()) {
+      loop_rate.sleep();
+      ros::spinOnce();
+
+      switch (mode_) {
+      case sun_robot_msgs::ClikSetMode::Request::MODE_STOP: {
+        continue;
+      }
+      case sun_robot_msgs::ClikSetMode::Request::MODE_POSITION: {
+        clik_core(cartesian_error_pub);
+        break;
+      }
+      case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY:
+      case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE: {
+        reset_desired_cartesian_pose();
+        clik_core(cartesian_error_pub);
+        break;
+      }
+      default: {
+        ROS_ERROR_STREAM(ros::this_node::getName()
+                         << " CLIK Error in main while: Invalid mode!");
+        throw clik_invalid_mode("non valid modality " + mode_);
+      }
+      }
     }
-    case sun_robot_msgs::ClikSetMode::Request::MODE_POSITION: {
-      clik_core(cartesian_error_pub);
-      break;
-    }
-    case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY:
-    case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE: {
-      reset_desired_cartesian_pose();
-      clik_core(cartesian_error_pub);
-      break;
-    }
-    default: {
-      ROS_ERROR_STREAM(ros::this_node::getName()
-                       << " CLIK Error in main while: Invalid mode!");
-      throw clik_invalid_mode("non valid modality " + mode_);
-    }
-    }
+  } catch (const std::exception &e) {
+    ROS_ERROR_STREAM(ros::this_node::getName() << e.what());
+    std::cerr << e.what() << '\n'; // or whatever
+    throw;
+  } catch (...) {
+    // well ok, still unknown what to do now,
+    // but a std::exception_ptr doesn't help the situation either.
+    ROS_ERROR_STREAM(ros::this_node::getName() << "unknown exception\n");
+    std::cerr << "unknown exception\n";
+    std::rethrow_exception(std::current_exception());
   }
 }
 

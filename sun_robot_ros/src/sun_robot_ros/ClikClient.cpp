@@ -65,6 +65,10 @@ void ClikClient::set_fixed_joints(
   }
 }
 
+void ClikClient::set_no_fixed_joints() {
+  set_fixed_joints(std::vector<std::string>());
+}
+
 void ClikClient::stop() {
   set_mode(sun_robot_msgs::ClikSetMode::Request::MODE_STOP);
 }

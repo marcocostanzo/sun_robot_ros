@@ -214,6 +214,16 @@ trajectory_msgs::JointTrajectory filterJointNames(const trajectory_msgs::JointTr
   return out_traj;
 }
 
+trajectory_msgs::JointTrajectory trajExcludeJoints(const trajectory_msgs::JointTrajectory& traj, std::vector<std::string> joints_to_exclude)
+{
+  // TODO VERY INEFFICIENT
+  std::vector<std::string> jonts_to_keep = traj.joint_names;
+  for(const auto& joint : joints_to_exclude){
+    jonts_to_keep.erase( std::remove( jonts_to_keep.begin(), jonts_to_keep.end(), joint ), jonts_to_keep.end() );
+  }
+  return filterJointNames(traj, jonts_to_keep);
+}
+
 sensor_msgs::JointState filterJointNames(const sensor_msgs::JointState& j_state,
                                          const std::vector<std::string>& jont_names)
 {
