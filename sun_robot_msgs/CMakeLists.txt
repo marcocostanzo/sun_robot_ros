@@ -52,6 +52,7 @@ add_message_files(
   FILES
   CartesianTrajectoryPoint.msg
   CartesianTrajectory.msg
+  CartesianStateStamped.msg 
 )
 
 ## Generate services in the 'srv' folder

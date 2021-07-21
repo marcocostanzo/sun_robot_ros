@@ -27,6 +27,7 @@
 
 #include "sun_robot_ros/exceptions.h"
 
+#include "sun_robot_msgs/CartesianStateStamped.h"
 #include "sun_robot_msgs/ClikGetState.h"
 #include "sun_robot_msgs/ClikSetEndEffector.h"
 #include "sun_robot_msgs/ClikSetFixedJoints.h"
@@ -49,6 +50,12 @@ protected:
   std::vector<std::string> ros_joint_names_;
   std::string ros_base_frame_id_;
 
+  bool b_pub_dbg_ = false;
+  ros::Publisher joi_state_pub_dbg_;
+  ros::Publisher twist_pub_dbg_;
+  ros::Publisher clikError_pub_dbg_;
+  ros::Publisher pos_posdes_pub_dbg_;
+
   //! Cbs
   virtual TooN::Vector<> getJointPositionRobot() = 0;
   virtual void publishJointRobot(const TooN::Vector<> &qR,
@@ -56,6 +63,8 @@ protected:
 
   // Note: for velocity mode it is sufficient clik_gain_=0;
   void clik_core(ros::Publisher &cartesian_error_pub);
+
+  void pub_dbg();
 
 public:
   ClikNode(const std::shared_ptr<Robot> &robot,
@@ -73,6 +82,10 @@ public:
   jointNamesToJointIndex(const std::vector<std::string> &joint_names) const;
 
   int getMode();
+
+  std::shared_ptr<Clik6DQuaternionSingleRobot> &getClik();
+
+  std::shared_ptr<Robot> &getRobot();
 
   /* RUNNERS */
 
@@ -103,6 +116,9 @@ public:
   void desiredPose_cb(const geometry_msgs::PoseStamped::ConstPtr &pose_msg);
 
   void desiredTwist_cb(const geometry_msgs::TwistStamped::ConstPtr &twist_msg);
+
+  void desiredPoseTwist_cb(
+      const sun_robot_msgs::CartesianStateStamped::ConstPtr &pose_twist_msg);
 };
 
 } // Namespace sun

@@ -11,8 +11,12 @@
 #include "sun_traj_lib/Rotation_Const_Axis_Traj.h"
 
 #include "sun_robot_msgs/CartesianTrajectoryAction.h"
+#include "sun_robot_msgs/CartesianStateStamped.h"
 
 std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajectoryAction>> as_traj;
+
+bool b_publish_on_pose_twist;
+ros::Publisher pose_twist_pub;
 ros::Publisher pose_pub;
 ros::Publisher twist_pub;
 
@@ -62,6 +66,8 @@ void traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal
   std::cout << "cartesian traj start!" << std::endl;
   ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
 
+  sun_robot_msgs::CartesianStateStamped out_pose_twist_msg;
+  out_pose_twist_msg.header.frame_id =  goal->trajectory.header.frame_id;
   geometry_msgs::PoseStamped out_pose;
   geometry_msgs::TwistStamped out_twist;
   out_pose.header.frame_id = goal->trajectory.header.frame_id;
@@ -125,26 +131,55 @@ void traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal
 
       feedbk.time_left = tf - time_now;
 
-      out_pose.pose.position.x = p[0];
-      out_pose.pose.position.y = p[1];
-      out_pose.pose.position.z = p[2];
-      out_pose.pose.orientation.w = Q.getS();
-      out_pose.pose.orientation.x = Q.getV()[0];
-      out_pose.pose.orientation.y = Q.getV()[1];
-      out_pose.pose.orientation.z = Q.getV()[2];
+      if(b_publish_on_pose_twist)
+      {
 
-      out_twist.twist.linear.x = dp[0];
-      out_twist.twist.linear.y = dp[1];
-      out_twist.twist.linear.z = dp[2];
-      out_twist.twist.angular.x = w[0];
-      out_twist.twist.angular.y = w[1];
-      out_twist.twist.angular.z = w[2];
+        out_pose_twist_msg.pose.position.x = p[0];
+        out_pose_twist_msg.pose.position.y = p[1];
+        out_pose_twist_msg.pose.position.z = p[2];
+        out_pose_twist_msg.pose.orientation.w = Q.getS();
+        out_pose_twist_msg.pose.orientation.x = Q.getV()[0];
+        out_pose_twist_msg.pose.orientation.y = Q.getV()[1];
+        out_pose_twist_msg.pose.orientation.z = Q.getV()[2];
 
-      out_pose.header.stamp = time_now;
-      out_twist.header.stamp = time_now;
+        out_pose_twist_msg.velocity.linear.x = dp[0];
+        out_pose_twist_msg.velocity.linear.y = dp[1];
+        out_pose_twist_msg.velocity.linear.z = dp[2];
+        out_pose_twist_msg.velocity.angular.x = w[0];
+        out_pose_twist_msg.velocity.angular.y = w[1];
+        out_pose_twist_msg.velocity.angular.z = w[2];
+        
 
-      pose_pub.publish(out_pose);
-      twist_pub.publish(out_twist);
+        out_pose_twist_msg.header.stamp = time_now;
+
+        pose_twist_pub.publish(out_pose_twist_msg);
+
+      }
+      else{
+
+        out_pose.pose.position.x = p[0];
+        out_pose.pose.position.y = p[1];
+        out_pose.pose.position.z = p[2];
+        out_pose.pose.orientation.w = Q.getS();
+        out_pose.pose.orientation.x = Q.getV()[0];
+        out_pose.pose.orientation.y = Q.getV()[1];
+        out_pose.pose.orientation.z = Q.getV()[2];
+
+        out_twist.twist.linear.x = dp[0];
+        out_twist.twist.linear.y = dp[1];
+        out_twist.twist.linear.z = dp[2];
+        out_twist.twist.angular.x = w[0];
+        out_twist.twist.angular.y = w[1];
+        out_twist.twist.angular.z = w[2];
+
+        out_pose.header.stamp = time_now;
+        out_twist.header.stamp = time_now;
+
+        pose_pub.publish(out_pose);
+        twist_pub.publish(out_twist);
+
+      }      
+
       as_traj->publishFeedback(feedbk);
       loop_rate.sleep();
     }
@@ -167,15 +202,26 @@ int main(int argc, char *argv[])
   ros::NodeHandle nh_private = ros::NodeHandle("~");
   ros::NodeHandle nh_public = ros::NodeHandle();
 
+  nh_private.param("publish_on_pose_twist", b_publish_on_pose_twist, false);
   std::string pose_out_topic_str;
   nh_private.param("pose_out_topic", pose_out_topic_str, std::string("pose_out"));
   std::string twist_out_topic_str;
   nh_private.param("twist_out_topic", twist_out_topic_str, std::string("twist_out"));
+  std::string pose_twist_out_topic_str;
+  nh_private.param("pose_twist_out_topic", pose_twist_out_topic_str, std::string("cartesian_traj"));
   std::string action_name_str;
   nh_private.param("action_name", action_name_str, std::string("cartesian_traj_action"));
 
-  pose_pub = nh_public.advertise<geometry_msgs::PoseStamped>(pose_out_topic_str, 1);
-  twist_pub = nh_public.advertise<geometry_msgs::TwistStamped>(twist_out_topic_str, 1);
+  if(b_publish_on_pose_twist)
+  {
+    pose_twist_pub = nh_public.advertise<sun_robot_msgs::CartesianStateStamped>(pose_twist_out_topic_str, 1);
+  }
+  else 
+  {
+    pose_pub = nh_public.advertise<geometry_msgs::PoseStamped>(pose_out_topic_str, 1);
+    twist_pub = nh_public.advertise<geometry_msgs::TwistStamped>(twist_out_topic_str, 1);
+  }
+
 
   as_traj = std::unique_ptr<actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajectoryAction>>(
       new actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajectoryAction>(nh_public, action_name_str,

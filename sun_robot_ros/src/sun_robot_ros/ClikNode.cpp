@@ -108,6 +108,8 @@ ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
   clik_integrator_.jointVelocityGenerator_ = clik_;
 
   // params
+  nh_for_parmas.param("pub_dbg", b_pub_dbg_, false);
+
   {
     nh_for_parmas.param("rate", clik_integrator_.Ts_, 1000.0);
     clik_integrator_.Ts_ = 1.0 / clik_integrator_.Ts_;
@@ -229,6 +231,12 @@ ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
 /* Getters */
 
 int ClikNode::getMode() { return mode_; }
+
+std::shared_ptr<Clik6DQuaternionSingleRobot> &ClikNode::getClik() {
+  return clik_;
+}
+
+std::shared_ptr<Robot> &ClikNode::getRobot() { return clik_->robot_; }
 
 /* RUNNERS */
 
@@ -512,10 +520,22 @@ void ClikNode::run() {
         nh_.subscribe("desired_pose", 1, &ClikNode::desiredPose_cb, this);
     ros::Subscriber desired_twist_sub =
         nh_.subscribe("desired_twist", 1, &ClikNode::desiredTwist_cb, this);
+    ros::Subscriber desired_pose_twis_sub = nh_.subscribe(
+        "desired_pose_twist", 1, &ClikNode::desiredPoseTwist_cb, this);
 
-    // Publish error
+    // Publish
     ros::Publisher cartesian_error_pub =
         nh_.advertise<sun_ros_msgs::Float64Stamped>("cartesian_error", 1);
+    if (b_pub_dbg_) {
+      joi_state_pub_dbg_ =
+          nh_.advertise<sensor_msgs::JointState>("dbg/command_joint_state", 1);
+      twist_pub_dbg_ =
+          nh_.advertise<geometry_msgs::TwistStamped>("dbg/twist", 1);
+      clikError_pub_dbg_ =
+          nh_.advertise<geometry_msgs::TwistStamped>("dbg/error", 1);
+      pos_posdes_pub_dbg_ =
+          nh_.advertise<geometry_msgs::TwistStamped>("dbg/pos_posdes", 1);
+    }
 
     // Init Services
     ros::ServiceServer serviceSetMode =
@@ -537,7 +557,7 @@ void ClikNode::run() {
 
       switch (mode_) {
       case sun_robot_msgs::ClikSetMode::Request::MODE_STOP: {
-        continue;
+        break;
       }
       case sun_robot_msgs::ClikSetMode::Request::MODE_POSITION: {
         clik_core(cartesian_error_pub);
@@ -555,6 +575,10 @@ void ClikNode::run() {
         throw clik_invalid_mode("non valid modality " + mode_);
       }
       }
+
+      if (b_pub_dbg_) {
+        pub_dbg();
+      }
     }
   } catch (const std::exception &e) {
     ROS_ERROR_STREAM(ros::this_node::getName() << e.what());
@@ -567,6 +591,60 @@ void ClikNode::run() {
     std::cerr << "unknown exception\n";
     std::rethrow_exception(std::current_exception());
   }
+}
+
+void ClikNode::pub_dbg() {
+  ros::Time time_now = ros::Time::now();
+  TooN::Vector<> qDH = clik_integrator_.getJointsDH();
+  TooN::Vector<> qDH_dot = clik_integrator_.getJointsVelDH();
+  TooN::Vector<> x_dot =
+      clik_->robot_->jacob_geometric(clik_integrator_.getJointsDH()) *
+      clik_integrator_.getJointsVelDH();
+  sensor_msgs::JointState joi_state;
+  joi_state.header.stamp = time_now;
+  joi_state.name = ros_joint_names_;
+  joi_state.position.resize(qDH.size());
+  joi_state.velocity.resize(qDH_dot.size());
+  for (int i = 0; i < qDH.size(); i++) {
+    joi_state.position[i] = qDH[i];
+    joi_state.velocity[i] = qDH_dot[i];
+  }
+  geometry_msgs::TwistStamped twist_msg;
+  twist_msg.header.stamp = time_now;
+  twist_msg.twist.linear.x = x_dot[0];
+  twist_msg.twist.linear.y = x_dot[1];
+  twist_msg.twist.linear.z = x_dot[2];
+  twist_msg.twist.angular.x = x_dot[3];
+  twist_msg.twist.angular.y = x_dot[4];
+  twist_msg.twist.angular.z = x_dot[5];
+
+  TooN::Vector<> clikError =
+      clik_->getClikError(clik_integrator_.getJointsDH());
+  geometry_msgs::TwistStamped clikError_msg;
+  clikError_msg.header.stamp = time_now;
+  clikError_msg.twist.linear.x = clikError[0];
+  clikError_msg.twist.linear.y = clikError[1];
+  clikError_msg.twist.linear.z = clikError[2];
+  clikError_msg.twist.angular.x = clikError[3];
+  clikError_msg.twist.angular.y = clikError[4];
+  clikError_msg.twist.angular.z = clikError[5];
+
+  geometry_msgs::TwistStamped pos_posdes_msg;
+  TooN::Vector<3> position =
+      clik_->robot_->fkine(clik_integrator_.getJointsDH()).T()[3].slice<0, 3>();
+  TooN::Vector<3> desiredPosition = clik_->desiredPosition_;
+  pos_posdes_msg.header.stamp = time_now;
+  pos_posdes_msg.twist.linear.x = position[0];
+  pos_posdes_msg.twist.linear.y = position[1];
+  pos_posdes_msg.twist.linear.z = position[2];
+  pos_posdes_msg.twist.angular.x = desiredPosition[0];
+  pos_posdes_msg.twist.angular.y = desiredPosition[1];
+  pos_posdes_msg.twist.angular.z = desiredPosition[2];
+
+  joi_state_pub_dbg_.publish(joi_state);
+  twist_pub_dbg_.publish(twist_msg);
+  clikError_pub_dbg_.publish(clikError_msg);
+  pos_posdes_pub_dbg_.publish(pos_posdes_msg);
 }
 
 // Note: for velocity mode it is sufficient clik_gain_=0
@@ -596,6 +674,45 @@ void ClikNode::safety_check(const TooN::Vector<> &qDH,
   } catch (const sun::robot::ExceededJointLimits &e) {
     ROS_ERROR_STREAM(ros::this_node::getName() << e.what());
     std::rethrow_exception(std::make_exception_ptr(e));
+  }
+}
+
+void ClikNode::desiredPoseTwist_cb(
+    const sun_robot_msgs::CartesianStateStamped::ConstPtr &pose_twist_msg) {
+  if (mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_POSITION) {
+    clik_->desiredPosition_[0] = pose_twist_msg->pose.position.x;
+    clik_->desiredPosition_[1] = pose_twist_msg->pose.position.y;
+    clik_->desiredPosition_[2] = pose_twist_msg->pose.position.z;
+
+    clik_->desiredQuaternion_ =
+        UnitQuaternion(pose_twist_msg->pose.orientation.w,
+                       TooN::makeVector(pose_twist_msg->pose.orientation.x,
+                                        pose_twist_msg->pose.orientation.y,
+                                        pose_twist_msg->pose.orientation.z));
+  }
+  if (mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_POSITION ||
+      mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_VELOCITY) {
+    clik_->desiredLinearVelocity_[0] = pose_twist_msg->velocity.linear.x;
+    clik_->desiredLinearVelocity_[1] = pose_twist_msg->velocity.linear.y;
+    clik_->desiredLinearVelocity_[2] = pose_twist_msg->velocity.linear.z;
+
+    clik_->desiredAngularVelocity_[0] = pose_twist_msg->velocity.angular.x;
+    clik_->desiredAngularVelocity_[1] = pose_twist_msg->velocity.angular.y;
+    clik_->desiredAngularVelocity_[2] = pose_twist_msg->velocity.angular.z;
+  } else if (mode_ == sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE) {
+    clik_->desiredLinearVelocity_[0] = pose_twist_msg->velocity.linear.x;
+    clik_->desiredLinearVelocity_[1] = pose_twist_msg->velocity.linear.y;
+    clik_->desiredLinearVelocity_[2] = pose_twist_msg->velocity.linear.z;
+
+    clik_->desiredAngularVelocity_[0] = pose_twist_msg->velocity.angular.x;
+    clik_->desiredAngularVelocity_[1] = pose_twist_msg->velocity.angular.y;
+    clik_->desiredAngularVelocity_[2] = pose_twist_msg->velocity.angular.z;
+
+    TooN::Matrix<3, 3> b_R_e =
+        clik_->robot_->fkine(clik_integrator_.getJointsDH())
+            .slice<0, 0, 3, 3>();
+    clik_->desiredLinearVelocity_ = b_R_e * clik_->desiredLinearVelocity_;
+    clik_->desiredAngularVelocity_ = b_R_e * clik_->desiredAngularVelocity_;
   }
 }
 
