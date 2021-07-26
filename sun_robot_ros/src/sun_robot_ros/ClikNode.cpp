@@ -95,18 +95,7 @@ std::vector<unsigned int> ClikNode::jointNamesToJointIndex(
   return out;
 }
 
-ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
-                   const ros::NodeHandle &nh_for_topics,
-                   const ros::NodeHandle &nh_for_parmas)
-    : clik_(std::make_shared<Clik6DQuaternionSingleRobot>(robot)),
-      secondObjTargetConfig_(
-          std::make_shared<JointVelocityTargetConfiguration>(robot)),
-      clik_integrator_(TooN::Zeros(robot->getNumJoints())), nh_(nh_for_topics) {
-
-  // arrange shared pointers
-  clik_->secondObjQdotDHgenerator_ = secondObjTargetConfig_;
-  clik_integrator_.jointVelocityGenerator_ = clik_;
-
+void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
   // params
   nh_for_parmas.param("pub_dbg", b_pub_dbg_, false);
 
@@ -226,6 +215,27 @@ ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
     ROS_INFO_STREAM(ros::this_node::getName() << " CLIK bT0: \n"
                                               << clik_->robot_->getbT0());
   }
+}
+
+ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
+                   const ros::NodeHandle &nh_for_topics,
+                   const ros::NodeHandle &nh_for_parmas)
+    : clik_(std::make_shared<Clik6DQuaternionSingleRobot>(robot)),
+      secondObjTargetConfig_(
+          std::make_shared<JointVelocityTargetConfiguration>(robot)),
+      clik_integrator_(TooN::Zeros(robot->getNumJoints())), nh_(nh_for_topics) {
+
+  // arrange shared pointers
+  clik_->secondObjQdotDHgenerator_ = secondObjTargetConfig_;
+  clik_integrator_.jointVelocityGenerator_ = clik_;
+
+  updateParams(nh_for_parmas);
+
+  nh_.setCallbackQueue(&callbk_queue_);
+}
+
+void ClikNode::spinOnce() {
+  callbk_queue_.callAvailable(ros::WallDuration(0.0));
 }
 
 /* Getters */
@@ -510,21 +520,27 @@ bool ClikNode::setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request &req,
 }
 
 void ClikNode::run() {
+  run_init();
+  while (ros::ok()) {
+    run_single_step();
+  }
+}
+
+void ClikNode::run_init() {
 
   try {
-
     reset_and_sync_with_robot();
 
     // Initialize subscribers
-    ros::Subscriber desired_pose_sub =
+    desired_pose_sub_ =
         nh_.subscribe("desired_pose", 1, &ClikNode::desiredPose_cb, this);
-    ros::Subscriber desired_twist_sub =
+    desired_twist_sub_ =
         nh_.subscribe("desired_twist", 1, &ClikNode::desiredTwist_cb, this);
-    ros::Subscriber desired_pose_twis_sub = nh_.subscribe(
+    desired_pose_twis_sub_ = nh_.subscribe(
         "desired_pose_twist", 1, &ClikNode::desiredPoseTwist_cb, this);
 
     // Publish
-    ros::Publisher cartesian_error_pub =
+    cartesian_error_pub_ =
         nh_.advertise<sun_ros_msgs::Float64Stamped>("cartesian_error", 1);
     if (b_pub_dbg_) {
       joi_state_pub_dbg_ =
@@ -538,48 +554,83 @@ void ClikNode::run() {
     }
 
     // Init Services
-    ros::ServiceServer serviceSetMode =
+    serviceSetMode_ =
         nh_.advertiseService("set_mode", &ClikNode::setMode_srv_cb, this);
-    ros::ServiceServer serviceGetState =
+    serviceGetState_ =
         nh_.advertiseService("get_state", &ClikNode::getState_srv_cb, this);
-    ros::ServiceServer serviceSetEndEffector = nh_.advertiseService(
+    serviceSetEndEffector_ = nh_.advertiseService(
         "set_end_effector", &ClikNode::setEndEffector_srv_cb, this);
-    ros::ServiceServer serviceSetSecondObj = nh_.advertiseService(
+    serviceSetSecondObj_ = nh_.advertiseService(
         "set_second_obj", &ClikNode::setSecondaryObj_srv_cb, this);
-    ros::ServiceServer serviceSetFixedJoints = nh_.advertiseService(
+    serviceSetFixedJoints_ = nh_.advertiseService(
         "set_fixed_joints", &ClikNode::setFixedJoints_srv_cb, this);
 
-    ros::Rate loop_rate(1.0 / clik_integrator_.Ts_);
+    loop_rate_ =
+        std::unique_ptr<ros::Rate>(new ros::Rate(1.0 / clik_integrator_.Ts_));
 
-    while (ros::ok()) {
-      loop_rate.sleep();
-      ros::spinOnce();
+  } catch (const std::exception &e) {
+    ROS_ERROR_STREAM(ros::this_node::getName() << e.what());
+    std::cerr << e.what() << '\n'; // or whatever
+    throw;
+  } catch (...) {
+    // well ok, still unknown what to do now,
+    // but a std::exception_ptr doesn't help the situation either.
+    ROS_ERROR_STREAM(ros::this_node::getName() << "unknown exception\n");
+    std::cerr << "unknown exception\n";
+    std::rethrow_exception(std::current_exception());
+  }
+}
 
-      switch (mode_) {
-      case sun_robot_msgs::ClikSetMode::Request::MODE_STOP: {
-        break;
-      }
-      case sun_robot_msgs::ClikSetMode::Request::MODE_POSITION: {
-        clik_core(cartesian_error_pub);
-        break;
-      }
-      case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY:
-      case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE: {
-        reset_desired_cartesian_pose();
-        clik_core(cartesian_error_pub);
-        break;
-      }
-      default: {
-        ROS_ERROR_STREAM(ros::this_node::getName()
-                         << " CLIK Error in main while: Invalid mode!");
-        throw clik_invalid_mode("non valid modality " + mode_);
-      }
-      }
+void ClikNode::run_single_step() {
 
-      if (b_pub_dbg_) {
-        pub_dbg();
-      }
+  try {
+
+    loop_rate_->sleep();
+    spinOnce();
+
+    bool b_publish_joints = false;
+
+    switch (mode_) {
+    case sun_robot_msgs::ClikSetMode::Request::MODE_STOP: {
+      break;
     }
+    case sun_robot_msgs::ClikSetMode::Request::MODE_POSITION: {
+      clik_core();
+      b_publish_joints = true;
+      break;
+    }
+    case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY:
+    case sun_robot_msgs::ClikSetMode::Request::MODE_VELOCITY_EE: {
+      reset_desired_cartesian_pose();
+      clik_core();
+      b_publish_joints = true;
+      break;
+    }
+    default: {
+      ROS_ERROR_STREAM(ros::this_node::getName()
+                       << " CLIK Error in main while: Invalid mode!");
+      throw clik_invalid_mode("non valid modality " + mode_);
+    }
+    }
+
+    if (b_pub_dbg_) {
+      pub_dbg();
+    }
+
+    if (b_publish_joints) {
+      publishJointRobot(
+          clik_->robot_->joints_DH2Robot(clik_integrator_.getJointsDH()),
+          clik_->robot_->jointsvel_DH2Robot(clik_integrator_.getJointsVelDH()));
+    }
+
+    // Publish clik error norm
+    sun_ros_msgs::Float64StampedPtr cartesian_error_msg(
+        new sun_ros_msgs::Float64Stamped);
+    cartesian_error_msg->header.stamp = ros::Time::now();
+    cartesian_error_msg->data =
+        norm(clik_->getClikError(clik_integrator_.getJointsDH()));
+    cartesian_error_pub_.publish(cartesian_error_msg);
+
   } catch (const std::exception &e) {
     ROS_ERROR_STREAM(ros::this_node::getName() << e.what());
     std::cerr << e.what() << '\n'; // or whatever
@@ -600,46 +651,47 @@ void ClikNode::pub_dbg() {
   TooN::Vector<> x_dot =
       clik_->robot_->jacob_geometric(clik_integrator_.getJointsDH()) *
       clik_integrator_.getJointsVelDH();
-  sensor_msgs::JointState joi_state;
-  joi_state.header.stamp = time_now;
-  joi_state.name = ros_joint_names_;
-  joi_state.position.resize(qDH.size());
-  joi_state.velocity.resize(qDH_dot.size());
+  sensor_msgs::JointStatePtr joi_state(new sensor_msgs::JointState);
+  joi_state->header.stamp = time_now;
+  joi_state->name = ros_joint_names_;
+  joi_state->position.resize(qDH.size());
+  joi_state->velocity.resize(qDH_dot.size());
   for (int i = 0; i < qDH.size(); i++) {
-    joi_state.position[i] = qDH[i];
-    joi_state.velocity[i] = qDH_dot[i];
+    joi_state->position[i] = qDH[i];
+    joi_state->velocity[i] = qDH_dot[i];
   }
-  geometry_msgs::TwistStamped twist_msg;
-  twist_msg.header.stamp = time_now;
-  twist_msg.twist.linear.x = x_dot[0];
-  twist_msg.twist.linear.y = x_dot[1];
-  twist_msg.twist.linear.z = x_dot[2];
-  twist_msg.twist.angular.x = x_dot[3];
-  twist_msg.twist.angular.y = x_dot[4];
-  twist_msg.twist.angular.z = x_dot[5];
+  geometry_msgs::TwistStampedPtr twist_msg(new geometry_msgs::TwistStamped);
+  twist_msg->header.stamp = time_now;
+  twist_msg->twist.linear.x = x_dot[0];
+  twist_msg->twist.linear.y = x_dot[1];
+  twist_msg->twist.linear.z = x_dot[2];
+  twist_msg->twist.angular.x = x_dot[3];
+  twist_msg->twist.angular.y = x_dot[4];
+  twist_msg->twist.angular.z = x_dot[5];
 
   TooN::Vector<> clikError =
       clik_->getClikError(clik_integrator_.getJointsDH());
-  geometry_msgs::TwistStamped clikError_msg;
-  clikError_msg.header.stamp = time_now;
-  clikError_msg.twist.linear.x = clikError[0];
-  clikError_msg.twist.linear.y = clikError[1];
-  clikError_msg.twist.linear.z = clikError[2];
-  clikError_msg.twist.angular.x = clikError[3];
-  clikError_msg.twist.angular.y = clikError[4];
-  clikError_msg.twist.angular.z = clikError[5];
+  geometry_msgs::TwistStampedPtr clikError_msg(new geometry_msgs::TwistStamped);
+  clikError_msg->header.stamp = time_now;
+  clikError_msg->twist.linear.x = clikError[0];
+  clikError_msg->twist.linear.y = clikError[1];
+  clikError_msg->twist.linear.z = clikError[2];
+  clikError_msg->twist.angular.x = clikError[3];
+  clikError_msg->twist.angular.y = clikError[4];
+  clikError_msg->twist.angular.z = clikError[5];
 
-  geometry_msgs::TwistStamped pos_posdes_msg;
+  geometry_msgs::TwistStampedPtr pos_posdes_msg(
+      new geometry_msgs::TwistStamped);
   TooN::Vector<3> position =
       clik_->robot_->fkine(clik_integrator_.getJointsDH()).T()[3].slice<0, 3>();
   TooN::Vector<3> desiredPosition = clik_->desiredPosition_;
-  pos_posdes_msg.header.stamp = time_now;
-  pos_posdes_msg.twist.linear.x = position[0];
-  pos_posdes_msg.twist.linear.y = position[1];
-  pos_posdes_msg.twist.linear.z = position[2];
-  pos_posdes_msg.twist.angular.x = desiredPosition[0];
-  pos_posdes_msg.twist.angular.y = desiredPosition[1];
-  pos_posdes_msg.twist.angular.z = desiredPosition[2];
+  pos_posdes_msg->header.stamp = time_now;
+  pos_posdes_msg->twist.linear.x = position[0];
+  pos_posdes_msg->twist.linear.y = position[1];
+  pos_posdes_msg->twist.linear.z = position[2];
+  pos_posdes_msg->twist.angular.x = desiredPosition[0];
+  pos_posdes_msg->twist.angular.y = desiredPosition[1];
+  pos_posdes_msg->twist.angular.z = desiredPosition[2];
 
   joi_state_pub_dbg_.publish(joi_state);
   twist_pub_dbg_.publish(twist_msg);
@@ -648,23 +700,12 @@ void ClikNode::pub_dbg() {
 }
 
 // Note: for velocity mode it is sufficient clik_gain_=0
-void ClikNode::clik_core(ros::Publisher &cartesian_error_pub) {
+void ClikNode::clik_core() {
 
   clik_integrator_.exec_single_step();
 
   safety_check(clik_integrator_.getJointsDH(),
                clik_integrator_.getJointsVelDH());
-
-  publishJointRobot(
-      clik_->robot_->joints_DH2Robot(clik_integrator_.getJointsDH()),
-      clik_->robot_->jointsvel_DH2Robot(clik_integrator_.getJointsVelDH()));
-
-  // Publish clik error norm
-  sun_ros_msgs::Float64Stamped cartesian_error_msg;
-  cartesian_error_msg.header.stamp = ros::Time::now();
-  cartesian_error_msg.data =
-      norm(clik_->getClikError(clik_integrator_.getJointsDH()));
-  cartesian_error_pub.publish(cartesian_error_msg);
 }
 
 void ClikNode::safety_check(const TooN::Vector<> &qDH,

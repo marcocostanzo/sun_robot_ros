@@ -15,6 +15,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef SUN_ROBOT_ROS_CLIK_NODE_H_
+#define SUN_ROBOT_ROS_CLIK_NODE_H_
+
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/TwistStamped.h"
 #include "ros/ros.h"
@@ -27,6 +30,7 @@
 
 #include "sun_robot_ros/exceptions.h"
 
+#include "ros/callback_queue.h"
 #include "sun_robot_msgs/CartesianStateStamped.h"
 #include "sun_robot_msgs/ClikGetState.h"
 #include "sun_robot_msgs/ClikSetEndEffector.h"
@@ -51,18 +55,33 @@ protected:
   std::string ros_base_frame_id_;
 
   bool b_pub_dbg_ = false;
+  ros::CallbackQueue callbk_queue_;
   ros::Publisher joi_state_pub_dbg_;
   ros::Publisher twist_pub_dbg_;
   ros::Publisher clikError_pub_dbg_;
   ros::Publisher pos_posdes_pub_dbg_;
 
+  ros::Publisher cartesian_error_pub_;
+
+  ros::Subscriber desired_pose_sub_;
+  ros::Subscriber desired_twist_sub_;
+  ros::Subscriber desired_pose_twis_sub_;
+
+  ros::ServiceServer serviceSetMode_;
+  ros::ServiceServer serviceGetState_;
+  ros::ServiceServer serviceSetEndEffector_;
+  ros::ServiceServer serviceSetSecondObj_;
+  ros::ServiceServer serviceSetFixedJoints_;
+
+  std::unique_ptr<ros::Rate> loop_rate_;
+
+  void spinOnce();
+
   //! Cbs
   virtual TooN::Vector<> getJointPositionRobot() = 0;
   virtual void publishJointRobot(const TooN::Vector<> &qR,
                                  const TooN::Vector<> &qR_dot) = 0;
-
-  // Note: for velocity mode it is sufficient clik_gain_=0;
-  void clik_core(ros::Publisher &cartesian_error_pub);
+  void clik_core();
 
   void pub_dbg();
 
@@ -72,6 +91,8 @@ public:
            const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
 
   ~ClikNode() = default;
+
+  void updateParams(const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
 
   /* Getters */
   // TooN::Vector<> get_qR();
@@ -109,6 +130,8 @@ public:
   bool setFixedJoints_srv_cb(sun_robot_msgs::ClikSetFixedJoints::Request &req,
                              sun_robot_msgs::ClikSetFixedJoints::Response &res);
 
+  void run_init();
+  void run_single_step();
   void run();
 
   void safety_check(const TooN::Vector<> &qR, const TooN::Vector<> &dqR);
@@ -122,3 +145,5 @@ public:
 };
 
 } // Namespace sun
+
+#endif

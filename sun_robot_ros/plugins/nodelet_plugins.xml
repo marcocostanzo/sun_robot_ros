@@ -1,0 +1,9 @@
+<library path="lib/libcartesian_traj_nodelet">
+  <class name="sun_robot_ros/CartesianTrajectoryServerNodelet"
+     type="sun_robot_ros::CartesianTrajectoryServerNodelet"
+     base_class_type="nodelet::Nodelet">
+    <description>
+     Nodelet CartesianTrajectoryServerNodelet
+    </description>  
+    </class>
+</library>

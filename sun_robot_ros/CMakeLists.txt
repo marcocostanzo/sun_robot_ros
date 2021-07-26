@@ -107,7 +107,7 @@ actionlib
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES ${PROJECT_NAME}
+ LIBRARIES ${PROJECT_NAME} cartesian_traj_nodelet
  CATKIN_DEPENDS roscpp sun_robot_lib sun_ros_msgs sun_robot_msgs actionlib
 #  DEPENDS system_lib
 )
@@ -127,6 +127,14 @@ ${catkin_INCLUDE_DIRS}
 add_library(${PROJECT_NAME}
   src/${PROJECT_NAME}/ClikNode.cpp
   src/${PROJECT_NAME}/ClikClient.cpp
+)
+
+add_library(cartesian_traj_nodelet
+  src/${PROJECT_NAME}/CartesianTrajectoryServerNodelet.cpp
+)
+add_dependencies(cartesian_traj_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(cartesian_traj_nodelet
+${catkin_LIBRARIES}
 )
 
 ## Add cmake target dependencies of the library

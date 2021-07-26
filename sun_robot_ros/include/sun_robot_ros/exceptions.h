@@ -1,3 +1,6 @@
+#ifndef SUN_ROBOT_ROS_EXCEPTIONS_H_
+#define SUN_ROBOT_ROS_EXCEPTIONS_H_
+
 #include <stdexcept>
 
 namespace sun
@@ -52,3 +55,5 @@ public:
 };
 
 }
+
+#endif
