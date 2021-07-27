@@ -62,6 +62,8 @@ protected:
   ros::Publisher pos_posdes_pub_dbg_;
 
   ros::Publisher cartesian_error_pub_;
+  bool b_pub_cartesian_twist_control_;
+  ros::Publisher cartesian_twist_control_pub_;
 
   ros::Subscriber desired_pose_sub_;
   ros::Subscriber desired_twist_sub_;

@@ -99,6 +99,9 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
   // params
   nh_for_parmas.param("pub_dbg", b_pub_dbg_, false);
 
+  nh_for_parmas.param("pub_cartesian_twist_control",
+                      b_pub_cartesian_twist_control_, false);
+
   {
     nh_for_parmas.param("rate", clik_integrator_.Ts_, 1000.0);
     clik_integrator_.Ts_ = 1.0 / clik_integrator_.Ts_;
@@ -542,6 +545,10 @@ void ClikNode::run_init() {
     // Publish
     cartesian_error_pub_ =
         nh_.advertise<sun_ros_msgs::Float64Stamped>("cartesian_error", 1);
+    if (b_pub_cartesian_twist_control_) {
+      cartesian_twist_control_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(
+          "cartesian_twist_control", 1);
+    }
     if (b_pub_dbg_) {
       joi_state_pub_dbg_ =
           nh_.advertise<sensor_msgs::JointState>("dbg/command_joint_state", 1);
@@ -588,6 +595,19 @@ void ClikNode::run_single_step() {
     loop_rate_->sleep();
     spinOnce();
 
+    geometry_msgs::TwistStampedPtr cartesian_twist_control_msg(
+        new geometry_msgs::TwistStamped);
+    if (b_pub_cartesian_twist_control_) {
+      TooN::Vector<> cartesian_twist_control =
+          clik_->getCartesianTwistControl(clik_integrator_.getJointsDH());
+      cartesian_twist_control_msg->twist.linear.x = cartesian_twist_control[0];
+      cartesian_twist_control_msg->twist.linear.y = cartesian_twist_control[1];
+      cartesian_twist_control_msg->twist.linear.z = cartesian_twist_control[2];
+      cartesian_twist_control_msg->twist.angular.x = cartesian_twist_control[3];
+      cartesian_twist_control_msg->twist.angular.y = cartesian_twist_control[4];
+      cartesian_twist_control_msg->twist.angular.z = cartesian_twist_control[5];
+    }
+
     bool b_publish_joints = false;
 
     switch (mode_) {
@@ -621,6 +641,10 @@ void ClikNode::run_single_step() {
       publishJointRobot(
           clik_->robot_->joints_DH2Robot(clik_integrator_.getJointsDH()),
           clik_->robot_->jointsvel_DH2Robot(clik_integrator_.getJointsVelDH()));
+    }
+    if (b_pub_cartesian_twist_control_) {
+      cartesian_twist_control_msg->header.stamp = ros::Time::now();
+      cartesian_twist_control_pub_.publish(cartesian_twist_control_msg);
     }
 
     // Publish clik error norm
