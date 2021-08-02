@@ -7,7 +7,7 @@ ClikClient::ClikClient(const ros::NodeHandle &nh) : nh_(nh) {
   sc_set_mode_ = nh_.serviceClient<sun_robot_msgs::ClikSetMode>("set_mode");
   sc_get_state_ = nh_.serviceClient<sun_robot_msgs::ClikGetState>("get_state");
   sc_set_end_effector_ =
-      nh_.serviceClient<sun_robot_msgs::ClikSetEndEffector>("set_end_effector");
+      nh_.serviceClient<sun_robot_msgs::SetEndEffector>("set_end_effector");
   sc_set_second_obj_ =
       nh_.serviceClient<sun_robot_msgs::ClikSetSecondaryObj>("set_second_obj");
   sc_set_fixed_joints_obj_ =
@@ -97,7 +97,7 @@ sun_robot_msgs::ClikGetState::Response ClikClient::get_state() {
 
 //! n_pose_ee = end effector pose w.r.t. link n
 void ClikClient::set_end_effector(const geometry_msgs::Pose &n_pose_ee) {
-  sun_robot_msgs::ClikSetEndEffector msg;
+  sun_robot_msgs::SetEndEffector msg;
   msg.request.n_pose_ee = n_pose_ee;
 
   bool success = sc_set_end_effector_.call(msg);

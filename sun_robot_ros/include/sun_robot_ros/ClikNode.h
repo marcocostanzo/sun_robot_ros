@@ -33,7 +33,7 @@
 #include "ros/callback_queue.h"
 #include "sun_robot_msgs/CartesianStateStamped.h"
 #include "sun_robot_msgs/ClikGetState.h"
-#include "sun_robot_msgs/ClikSetEndEffector.h"
+#include "sun_robot_msgs/SetEndEffector.h"
 #include "sun_robot_msgs/ClikSetFixedJoints.h"
 #include "sun_robot_msgs/ClikSetMode.h"
 #include "sun_robot_msgs/ClikSetSecondaryObj.h"
@@ -64,6 +64,8 @@ protected:
   ros::Publisher cartesian_error_pub_;
   bool b_pub_cartesian_twist_control_;
   ros::Publisher cartesian_twist_control_pub_;
+  bool b_publish_robot_fkine_;
+  ros::Publisher robot_fkine_pub_;
 
   ros::Subscriber desired_pose_sub_;
   ros::Subscriber desired_twist_sub_;
@@ -77,10 +79,11 @@ protected:
 
   std::unique_ptr<ros::Rate> loop_rate_;
 
-  void spinOnce();
+  void spinOnce(const ros::WallDuration &timeout = ros::WallDuration(0.0));
 
   //! Cbs
-  virtual TooN::Vector<> getJointPositionRobot() = 0;
+  virtual TooN::Vector<> getJointPositionRobot(bool wait_new_sample = true) = 0;
+
   virtual void publishJointRobot(const TooN::Vector<> &qR,
                                  const TooN::Vector<> &qR_dot) = 0;
   void clik_core();
@@ -123,8 +126,8 @@ public:
   setSecondaryObj_srv_cb(sun_robot_msgs::ClikSetSecondaryObj::Request &req,
                          sun_robot_msgs::ClikSetSecondaryObj::Response &res);
 
-  bool setEndEffector_srv_cb(sun_robot_msgs::ClikSetEndEffector::Request &req,
-                             sun_robot_msgs::ClikSetEndEffector::Response &res);
+  bool setEndEffector_srv_cb(sun_robot_msgs::SetEndEffector::Request &req,
+                             sun_robot_msgs::SetEndEffector::Response &res);
 
   bool setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request &req,
                       sun_robot_msgs::ClikSetMode::Response &res);
@@ -132,7 +135,7 @@ public:
   bool setFixedJoints_srv_cb(sun_robot_msgs::ClikSetFixedJoints::Request &req,
                              sun_robot_msgs::ClikSetFixedJoints::Response &res);
 
-  void run_init();
+  virtual void run_init();
   void run_single_step();
   void run();
 

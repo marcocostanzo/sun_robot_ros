@@ -5,7 +5,7 @@
 #include "geometry_msgs/TransformStamped.h"
 #include "ros/ros.h"
 #include "sun_robot_msgs/ClikGetState.h"
-#include "sun_robot_msgs/ClikSetEndEffector.h"
+#include "sun_robot_msgs/SetEndEffector.h"
 #include "sun_robot_msgs/ClikSetFixedJoints.h"
 #include "sun_robot_msgs/ClikSetMode.h"
 #include "sun_robot_msgs/ClikSetSecondaryObj.h"

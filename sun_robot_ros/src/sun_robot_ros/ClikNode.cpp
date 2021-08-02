@@ -102,6 +102,8 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
   nh_for_parmas.param("pub_cartesian_twist_control",
                       b_pub_cartesian_twist_control_, false);
 
+  nh_for_parmas.param("pub_robot_fkine", b_publish_robot_fkine_, true);
+
   {
     nh_for_parmas.param("rate", clik_integrator_.Ts_, 1000.0);
     clik_integrator_.Ts_ = 1.0 / clik_integrator_.Ts_;
@@ -226,7 +228,8 @@ ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
     : clik_(std::make_shared<Clik6DQuaternionSingleRobot>(robot)),
       secondObjTargetConfig_(
           std::make_shared<JointVelocityTargetConfiguration>(robot)),
-      clik_integrator_(TooN::Zeros(robot->getNumJoints())), nh_(nh_for_topics) {
+      clik_integrator_(TooN::Zeros(robot->getNumJoints())),
+      nh_(nh_for_topics, "") {
 
   // arrange shared pointers
   clik_->secondObjQdotDHgenerator_ = secondObjTargetConfig_;
@@ -237,8 +240,8 @@ ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
   nh_.setCallbackQueue(&callbk_queue_);
 }
 
-void ClikNode::spinOnce() {
-  callbk_queue_.callAvailable(ros::WallDuration(0.0));
+void ClikNode::spinOnce(const ros::WallDuration &timeout) {
+  callbk_queue_.callAvailable(timeout);
 }
 
 /* Getters */
@@ -455,8 +458,8 @@ bool ClikNode::setSecondaryObj_srv_cb(
 }
 
 bool ClikNode::setEndEffector_srv_cb(
-    sun_robot_msgs::ClikSetEndEffector::Request &req,
-    sun_robot_msgs::ClikSetEndEffector::Response &res) {
+    sun_robot_msgs::SetEndEffector::Request &req,
+    sun_robot_msgs::SetEndEffector::Response &res) {
   if (mode_ != sun_robot_msgs::ClikSetMode::Request::MODE_STOP) {
     ROS_ERROR_STREAM(
         ros::this_node::getName()
@@ -513,7 +516,8 @@ bool ClikNode::setMode_srv_cb(sun_robot_msgs::ClikSetMode::Request &req,
   }
   }
 
-  if (mode_ != req.mode) {
+  if (req.mode == sun_robot_msgs::ClikSetMode::Request::MODE_STOP ||
+      mode_ != req.mode) {
     reset_and_sync_with_robot();
   }
   mode_ = req.mode;
@@ -548,6 +552,9 @@ void ClikNode::run_init() {
     if (b_pub_cartesian_twist_control_) {
       cartesian_twist_control_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(
           "cartesian_twist_control", 1);
+    }
+    if (b_publish_robot_fkine_) {
+      robot_fkine_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("fkine", 1);
     }
     if (b_pub_dbg_) {
       joi_state_pub_dbg_ =
@@ -642,9 +649,28 @@ void ClikNode::run_single_step() {
           clik_->robot_->joints_DH2Robot(clik_integrator_.getJointsDH()),
           clik_->robot_->jointsvel_DH2Robot(clik_integrator_.getJointsVelDH()));
     }
+
     if (b_pub_cartesian_twist_control_) {
       cartesian_twist_control_msg->header.stamp = ros::Time::now();
       cartesian_twist_control_pub_.publish(cartesian_twist_control_msg);
+    }
+
+    if (b_publish_robot_fkine_) {
+      TooN::Matrix<4, 4> b_T_e = clik_->robot_->fkine(
+          clik_->robot_->joints_Robot2DH(getJointPositionRobot(false)));
+      sun::UnitQuaternion b_Q_e(b_T_e, clik_->getCurrentQuaternion());
+      auto b_p_e = sun::transl(b_T_e);
+      geometry_msgs::PoseStampedPtr fkine_msg(new geometry_msgs::PoseStamped);
+      fkine_msg->header.stamp = ros::Time::now();
+      fkine_msg->pose.position.x = b_p_e[0];
+      fkine_msg->pose.position.y = b_p_e[1];
+      fkine_msg->pose.position.z = b_p_e[2];
+      fkine_msg->pose.orientation.w = b_Q_e.getS();
+      fkine_msg->pose.orientation.x = b_Q_e.getV()[0];
+      fkine_msg->pose.orientation.y = b_Q_e.getV()[1];
+      fkine_msg->pose.orientation.z = b_Q_e.getV()[2];
+
+      robot_fkine_pub_.publish(fkine_msg);
     }
 
     // Publish clik error norm

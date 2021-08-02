@@ -36,11 +36,12 @@ public:
   ros::Publisher pose_pub_;
   ros::Publisher twist_pub_;
 
+  ~CartesianTrajectoryServer() = default;
+
   CartesianTrajectoryServer(
       const ros::NodeHandle &nh_for_topics = ros::NodeHandle("clik"),
       const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"))
       : nh_(nh_for_topics) {
-    std::cout << "CartesianTrajectoryServer::() 1" << std::endl;
     nh_.setCallbackQueue(&callbackQueue_);
 
     nh_for_parmas.param("publish_on_pose_twist", b_publish_on_pose_twist_,
@@ -75,14 +76,9 @@ public:
             nh_, action_name_str,
             boost::bind(&CartesianTrajectoryServer::traj_execute_cb, this, _1),
             false));
-
-    std::cout << "CartesianTrajectoryServer::() end" << std::endl;
   }
 
-  void start() {
-    as_traj_->start();
-    std::cout << "CartesianTrajectoryServer::start 1" << std::endl;
-  }
+  void start() { as_traj_->start(); }
 
   void spinOnce() { callbackQueue_.callAvailable(ros::WallDuration(0.0)); }
 
@@ -91,8 +87,6 @@ public:
       spinOnce();
     }
   }
-
-  ~CartesianTrajectoryServer();
 
   static TooN::Vector<3> toTooN(const geometry_msgs::Point &p) {
     return TooN::makeVector(p.x, p.y, p.z);
@@ -114,8 +108,6 @@ public:
   void
   traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal) {
 
-    std::cout << "CartesianTrajectoryServer::traj_execute_cb" << std::endl;
-
     ros::Time t0 = goal->trajectory.header.stamp;
     if (t0.toSec() == 0) {
       t0 = ros::Time::now();
@@ -135,7 +127,7 @@ public:
       return;
     }
 
-    std::cout << "cartesian traj start!" << std::endl;
+    ROS_INFO_STREAM("cartesian traj start!" << std::endl);
     ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
 
     ros::Rate loop_rate(goal->sampling_freq);

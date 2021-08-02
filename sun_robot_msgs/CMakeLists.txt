@@ -60,7 +60,7 @@ add_service_files(
   FILES
   ClikSetMode.srv
   ClikGetState.srv
-  ClikSetEndEffector.srv
+  SetEndEffector.srv
   ClikSetSecondaryObj.srv
   ClikSetFixedJoints.srv
 )

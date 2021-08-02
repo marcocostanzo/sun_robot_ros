@@ -127,6 +127,7 @@ ${catkin_INCLUDE_DIRS}
 add_library(${PROJECT_NAME}
   src/${PROJECT_NAME}/ClikNode.cpp
   src/${PROJECT_NAME}/ClikClient.cpp
+  src/${PROJECT_NAME}/FkineNode.cpp
 )
 
 add_library(cartesian_traj_nodelet

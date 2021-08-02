@@ -48,7 +48,7 @@ void joint_traj_execute_cb(const sun_robot_msgs::JointTrajectoryGoalConstPtr& go
     as_joint_traj->setAborted();
     return;
   }
-  std::cout << "joint traj start!" << std::endl;
+  ROS_INFO_STREAM("joint traj start!");
   ros::Time tf = t0 + goal->trajectory.points.back().time_from_start;
 
   sensor_msgs::JointState out_msg;
