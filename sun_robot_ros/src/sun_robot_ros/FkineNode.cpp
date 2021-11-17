@@ -44,6 +44,7 @@ bool FkineNode::setEndEffector_srv_cb(
 void FkineNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
 
   nh_for_parmas.param("out_pose", out_pose_topic_, std::string("ee_pose"));
+  nh_for_parmas.param("out_twist", out_twist_topic_, std::string("ee_twist"));
 
   // n_T_e
   {
@@ -110,6 +111,7 @@ void FkineNode::start() {
   serviceSetEndEffector_ = nh_.advertiseService(
       "set_end_effector", &FkineNode::setEndEffector_srv_cb, this);
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(out_pose_topic_, 1);
+  twist_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(out_twist_topic_, 1);
   registerJointSubscriber();
 }
 
@@ -136,6 +138,26 @@ void FkineNode::publishFkine(const TooN::Vector<> &qR) {
   out->pose.orientation.z = quat.getV()[2];
 
   pose_pub_.publish(out);
+}
+
+void FkineNode::publishVel(const TooN::Vector<> &qR, const TooN::Vector<> &qdotR) {
+
+  TooN::Matrix<4, 4> b_T_ee = robot_->fkine(robot_->joints_Robot2DH(qR));
+
+  TooN::Vector<6> vel = robot_->jacob_geometric(robot_->joints_Robot2DH(qR))*robot_->jointsvel_Robot2DH(qdotR);
+
+  geometry_msgs::TwistStampedPtr out(new geometry_msgs::TwistStamped);
+
+  out->header.stamp = ros::Time::now();
+
+  out->twist.linear.x = vel[0];
+  out->twist.linear.y = vel[1];
+  out->twist.linear.z = vel[2];
+  out->twist.angular.x = vel[3];
+  out->twist.angular.y = vel[4];
+  out->twist.angular.z = vel[5];
+
+  twist_pub_.publish(out);
 }
 
 } // namespace sun

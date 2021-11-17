@@ -2,6 +2,7 @@
 #define SUN_ROBOT_FKINE_NODE_H_
 
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/TwistStamped.h"
 #include "ros/ros.h"
 
 #include <sun_robot_lib/Clik.h>
@@ -22,11 +23,10 @@ protected:
   //! ROS
   ros::NodeHandle nh_;
   ros::CallbackQueue *callbk_queue_;
-  ros::Publisher pose_pub_;
-  ros::Subscriber joint_sub_;
+  ros::Publisher pose_pub_, twist_pub_;
   ros::ServiceServer serviceSetEndEffector_;
 
-  std::string out_pose_topic_;
+  std::string out_pose_topic_, out_twist_topic_;
 
   sun::UnitQuaternion oldQuat; // continuity
 
@@ -37,6 +37,8 @@ protected:
   updateParams(const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
 
   void publishFkine(const TooN::Vector<> &qR);
+
+  void publishVel(const TooN::Vector<> &qR, const TooN::Vector<> &qdotR);
 
   /**
    joint_sub_ = ...
