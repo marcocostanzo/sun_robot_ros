@@ -55,6 +55,8 @@ protected:
   std::string ros_base_frame_id_;
 
   bool b_pub_dbg_ = false;
+  bool b_use_realtime_ = false;
+
   ros::CallbackQueue callbk_queue_;
   ros::Publisher joi_state_pub_dbg_;
   ros::Publisher twist_pub_dbg_;

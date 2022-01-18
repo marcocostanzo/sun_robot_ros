@@ -17,6 +17,8 @@
 #include "sun_robot_msgs/CartesianStateStamped.h"
 #include "sun_robot_msgs/CartesianTrajectoryAction.h"
 
+#include "check_realtime.h"
+
 namespace sun {
 
 class CartesianTrajectoryServer {
@@ -24,6 +26,7 @@ private:
   /* data */
 public:
   ros::NodeHandle nh_;
+  ros::NodeHandle nh_for_params_;
 
   ros::CallbackQueue callbackQueue_;
 
@@ -31,6 +34,7 @@ public:
       actionlib::SimpleActionServer<sun_robot_msgs::CartesianTrajectoryAction>>
       as_traj_;
 
+  bool b_use_realtime_;
   bool b_publish_on_pose_twist_;
   ros::Publisher pose_twist_pub_;
   ros::Publisher pose_pub_;
@@ -40,24 +44,29 @@ public:
 
   CartesianTrajectoryServer(
       const ros::NodeHandle &nh_for_topics = ros::NodeHandle("clik"),
-      const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"))
-      : nh_(nh_for_topics) {
+      const ros::NodeHandle &nh_for_params = ros::NodeHandle("~"))
+      : nh_(nh_for_topics), nh_for_params_(nh_for_params) {}
+
+  void init() {
+
     nh_.setCallbackQueue(&callbackQueue_);
 
-    nh_for_parmas.param("publish_on_pose_twist", b_publish_on_pose_twist_,
-                        false);
+    nh_for_params_.param("use_realtime", b_use_realtime_, false);
+
+    nh_for_params_.param("publish_on_pose_twist", b_publish_on_pose_twist_,
+                         false);
     std::string pose_out_topic_str;
-    nh_for_parmas.param("pose_out_topic", pose_out_topic_str,
-                        std::string("pose_out"));
+    nh_for_params_.param("pose_out_topic", pose_out_topic_str,
+                         std::string("pose_out"));
     std::string twist_out_topic_str;
-    nh_for_parmas.param("twist_out_topic", twist_out_topic_str,
-                        std::string("twist_out"));
+    nh_for_params_.param("twist_out_topic", twist_out_topic_str,
+                         std::string("twist_out"));
     std::string pose_twist_out_topic_str;
-    nh_for_parmas.param("pose_twist_out_topic", pose_twist_out_topic_str,
-                        std::string("cartesian_traj"));
+    nh_for_params_.param("pose_twist_out_topic", pose_twist_out_topic_str,
+                         std::string("cartesian_traj"));
     std::string action_name_str;
-    nh_for_parmas.param("action_name", action_name_str,
-                        std::string("cartesian_traj_action"));
+    nh_for_params_.param("action_name", action_name_str,
+                         std::string("cartesian_traj_action"));
 
     if (b_publish_on_pose_twist_) {
       pose_twist_pub_ = nh_.advertise<sun_robot_msgs::CartesianStateStamped>(
@@ -76,6 +85,17 @@ public:
             nh_, action_name_str,
             boost::bind(&CartesianTrajectoryServer::traj_execute_cb, this, _1),
             false));
+
+    if (b_use_realtime_) {
+
+      if (!check_realtime()) {
+        throw std::runtime_error("REALTIME NOT AVAILABLE");
+      }
+
+      if (!set_realtime_SCHED_FIFO()) {
+        throw std::runtime_error("ERROR IN set_realtime_SCHED_FIFO");
+      }
+    }
   }
 
   void start() { as_traj_->start(); }

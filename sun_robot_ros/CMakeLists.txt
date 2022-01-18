@@ -107,7 +107,7 @@ actionlib
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES ${PROJECT_NAME} cartesian_traj_nodelet
+ LIBRARIES ${PROJECT_NAME} cartesian_traj_nodelet joint_traj_nodelet
  CATKIN_DEPENDS roscpp sun_robot_lib sun_ros_msgs sun_robot_msgs actionlib
 #  DEPENDS system_lib
 )
@@ -135,6 +135,14 @@ add_library(cartesian_traj_nodelet
 )
 add_dependencies(cartesian_traj_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(cartesian_traj_nodelet
+${catkin_LIBRARIES}
+)
+
+add_library(joint_traj_nodelet
+  src/${PROJECT_NAME}/JointTrajectoryServerNodelet.cpp
+)
+add_dependencies(joint_traj_nodelet ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(joint_traj_nodelet
 ${catkin_LIBRARIES}
 )
 

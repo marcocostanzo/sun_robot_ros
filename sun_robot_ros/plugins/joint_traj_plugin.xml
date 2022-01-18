@@ -1,0 +1,7 @@
+<library path="lib/libjoint_traj_nodelet">
+  <class name="sun_robot_ros/JointTrajectoryServerNodelet" type="sun_robot_ros::JointTrajectoryServerNodelet" base_class_type="nodelet::Nodelet">
+    <description>
+     Nodelet JointTrajectoryServerNodelet
+    </description>
+  </class>
+</library>

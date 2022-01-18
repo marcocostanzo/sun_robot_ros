@@ -37,6 +37,7 @@ public:
 
   /** Nodelet device poll thread main function. */
   void threadCB() {
+    cartesianServerNode_->init();
     cartesianServerNode_->start();
     while (ros::ok() && running_) {
       cartesianServerNode_->spinOnce();

@@ -16,6 +16,7 @@
 */
 
 #include "sun_robot_ros/ClikNode.h"
+#include "sun_robot_ros/check_realtime.h"
 
 namespace sun {
 
@@ -95,47 +96,49 @@ std::vector<unsigned int> ClikNode::jointNamesToJointIndex(
   return out;
 }
 
-void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
+void ClikNode::updateParams(const ros::NodeHandle &nh_for_params) {
   // params
-  nh_for_parmas.param("pub_dbg", b_pub_dbg_, false);
+  nh_for_params.param("use_realtime", b_use_realtime_, false);
 
-  nh_for_parmas.param("pub_cartesian_twist_control",
+  nh_for_params.param("pub_dbg", b_pub_dbg_, false);
+
+  nh_for_params.param("pub_cartesian_twist_control",
                       b_pub_cartesian_twist_control_, false);
 
-  nh_for_parmas.param("pub_robot_fkine", b_publish_robot_fkine_, true);
+  nh_for_params.param("pub_robot_fkine", b_publish_robot_fkine_, true);
 
   {
-    nh_for_parmas.param("rate", clik_integrator_.Ts_, 1000.0);
+    nh_for_params.param("rate", clik_integrator_.Ts_, 1000.0);
     clik_integrator_.Ts_ = 1.0 / clik_integrator_.Ts_;
   }
   {
     double error_gain;
-    nh_for_parmas.param("error_gain", error_gain, 0.5);
+    nh_for_params.param("error_gain", error_gain, 0.5);
     error_gain = error_gain / clik_integrator_.Ts_;
     clik_->setGainError(error_gain);
   }
 
   ros_joint_names_ =
-      getSTDVectorFromParam<std::string>(nh_for_parmas, "ros_joint_names", {});
-  nh_for_parmas.param("ros_base_frame_id", ros_base_frame_id_,
+      getSTDVectorFromParam<std::string>(nh_for_params, "ros_joint_names", {});
+  nh_for_params.param("ros_base_frame_id", ros_base_frame_id_,
                       std::string("clik_base_frame"));
 
   {
     double dls_joint_speed_saturation;
-    nh_for_parmas.param("dls_joint_speed_saturation",
+    nh_for_params.param("dls_joint_speed_saturation",
                         dls_joint_speed_saturation, 5.0);
     clik_->setDLSJointSpeedSaturation(dls_joint_speed_saturation);
   }
   {
     double second_obj_gain;
-    nh_for_parmas.param("second_obj_gain", second_obj_gain, 0.0);
+    nh_for_params.param("second_obj_gain", second_obj_gain, 0.0);
     clik_->setGainNullSpace(second_obj_gain);
   }
 
   // joint_target_robot_second_obj
   {
     TooN::Vector<> secondObj_desiredConfig =
-        getTooNVectorFromParam(nh_for_parmas, "joint_target_robot_second_obj",
+        getTooNVectorFromParam(nh_for_params, "joint_target_robot_second_obj",
                                clik_->robot_->getNumJoints(),
                                clik_->robot_->getCenterOfSoftJointLimits());
     secondObjTargetConfig_->setDesiredConfiguration(
@@ -147,7 +150,7 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
 
   // joint_weights_second_obj
   secondObjTargetConfig_->setDesiredConfigurationJointWeights(
-      getTooNVectorFromParam(nh_for_parmas, "joint_weights_second_obj",
+      getTooNVectorFromParam(nh_for_params, "joint_weights_second_obj",
                              clik_->robot_->getNumJoints(),
                              TooN::Ones(clik_->robot_->getNumJoints())));
   ROS_INFO_STREAM(
@@ -158,7 +161,7 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
   {
     // fixed_joints
     std::vector<std::string> fixed_joints_names =
-        getSTDVectorFromParam<std::string>(nh_for_parmas, "fixed_joints_names",
+        getSTDVectorFromParam<std::string>(nh_for_params, "fixed_joints_names",
                                            {});
     remove_duplicates(fixed_joints_names);
     std::vector<unsigned int> fixed_joints_index =
@@ -173,19 +176,19 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
   }
   // n_T_e
   {
-    if (nh_for_parmas.hasParam("n_T_e_position") ||
-        nh_for_parmas.hasParam("n_T_e_quaternion")) {
-      if (!nh_for_parmas.hasParam("n_T_e_position") ||
-          !nh_for_parmas.hasParam("n_T_e_quaternion")) {
+    if (nh_for_params.hasParam("n_T_e_position") ||
+        nh_for_params.hasParam("n_T_e_quaternion")) {
+      if (!nh_for_params.hasParam("n_T_e_position") ||
+          !nh_for_params.hasParam("n_T_e_quaternion")) {
         throw std::runtime_error("The n_T_e must be fully defined");
       }
     }
-    if (nh_for_parmas.hasParam("n_T_e_position") &&
-        nh_for_parmas.hasParam("n_T_e_quaternion")) {
+    if (nh_for_params.hasParam("n_T_e_position") &&
+        nh_for_params.hasParam("n_T_e_quaternion")) {
       TooN::Vector<3> n_T_e_position = getTooNVectorFromParam(
-          nh_for_parmas, "n_T_e_position", 3, TooN::Zeros(3));
+          nh_for_params, "n_T_e_position", 3, TooN::Zeros(3));
       TooN::Vector<4> n_T_e_quat_v =
-          getTooNVectorFromParam(nh_for_parmas, "n_T_e_quaternion", 4,
+          getTooNVectorFromParam(nh_for_params, "n_T_e_quaternion", 4,
                                  TooN::makeVector(1.0, 0.0, 0.0, 0.0));
       UnitQuaternion n_T_e_quaternion(n_T_e_quat_v);
       TooN::Matrix<4, 4> n_T_e = transl(n_T_e_position);
@@ -198,19 +201,19 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
 
   // b_T_0
   {
-    if (nh_for_parmas.hasParam("b_T_0_position") ||
-        nh_for_parmas.hasParam("b_T_0_quaternion")) {
-      if (!nh_for_parmas.hasParam("b_T_0_position") ||
-          !nh_for_parmas.hasParam("b_T_0_quaternion")) {
+    if (nh_for_params.hasParam("b_T_0_position") ||
+        nh_for_params.hasParam("b_T_0_quaternion")) {
+      if (!nh_for_params.hasParam("b_T_0_position") ||
+          !nh_for_params.hasParam("b_T_0_quaternion")) {
         throw std::runtime_error("The base transform must be fully defined");
       }
     }
-    if (nh_for_parmas.hasParam("b_T_0_position") &&
-        nh_for_parmas.hasParam("b_T_0_quaternion")) {
+    if (nh_for_params.hasParam("b_T_0_position") &&
+        nh_for_params.hasParam("b_T_0_quaternion")) {
       TooN::Vector<3> b_T_0_position = getTooNVectorFromParam(
-          nh_for_parmas, "b_T_0_position", 3, TooN::Zeros(3));
+          nh_for_params, "b_T_0_position", 3, TooN::Zeros(3));
       TooN::Vector<4> b_T_0_quat_v =
-          getTooNVectorFromParam(nh_for_parmas, "b_T_0_quaternion", 4,
+          getTooNVectorFromParam(nh_for_params, "b_T_0_quaternion", 4,
                                  TooN::makeVector(1.0, 0.0, 0.0, 0.0));
       UnitQuaternion b_T_0_quaternion(b_T_0_quat_v);
       TooN::Matrix<4, 4> b_T_0 = transl(b_T_0_position);
@@ -224,7 +227,7 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
 
 ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
                    const ros::NodeHandle &nh_for_topics,
-                   const ros::NodeHandle &nh_for_parmas)
+                   const ros::NodeHandle &nh_for_params)
     : clik_(std::make_shared<Clik6DQuaternionSingleRobot>(robot)),
       secondObjTargetConfig_(
           std::make_shared<JointVelocityTargetConfiguration>(robot)),
@@ -235,7 +238,7 @@ ClikNode::ClikNode(const std::shared_ptr<Robot> &robot,
   clik_->secondObjQdotDHgenerator_ = secondObjTargetConfig_;
   clik_integrator_.jointVelocityGenerator_ = clik_;
 
-  updateParams(nh_for_parmas);
+  updateParams(nh_for_params);
 
   nh_.setCallbackQueue(&callbk_queue_);
 }
@@ -578,6 +581,17 @@ void ClikNode::run_init() {
         "set_second_obj", &ClikNode::setSecondaryObj_srv_cb, this);
     serviceSetFixedJoints_ = nh_.advertiseService(
         "set_fixed_joints", &ClikNode::setFixedJoints_srv_cb, this);
+
+    if (b_use_realtime_) {
+
+      if (!check_realtime()) {
+        throw std::runtime_error("REALTIME NOT AVAILABLE");
+      }
+
+      if (!set_realtime_SCHED_FIFO()) {
+        throw std::runtime_error("ERROR IN set_realtime_SCHED_FIFO");
+      }
+    }
 
     loop_rate_ =
         std::unique_ptr<ros::Rate>(new ros::Rate(1.0 / clik_integrator_.Ts_));
