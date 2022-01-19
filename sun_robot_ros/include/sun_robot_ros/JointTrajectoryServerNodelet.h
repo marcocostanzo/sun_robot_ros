@@ -35,10 +35,11 @@ public:
 
   /** Nodelet device poll thread main function. */
   void threadCB() {
+    ros::WallDuration timeout(0.1f);
     jointServerNode_->init();
     jointServerNode_->start();
     while (ros::ok() && running_) {
-      jointServerNode_->spinOnce();
+      jointServerNode_->spinOnce(timeout);
     }
   }
 };

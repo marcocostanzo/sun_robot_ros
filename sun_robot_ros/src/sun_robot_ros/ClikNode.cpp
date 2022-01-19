@@ -539,6 +539,20 @@ void ClikNode::run() {
 void ClikNode::run_init() {
 
   try {
+
+    if (b_use_realtime_) {
+
+      if (!check_realtime()) {
+        throw std::runtime_error("REALTIME NOT AVAILABLE");
+      }
+
+      if (!set_realtime_SCHED_FIFO()) {
+        throw std::runtime_error("ERROR IN set_realtime_SCHED_FIFO");
+      }
+
+      std::cout << "[CLIK NODE] REALTIME MODE SCHED_FIFO!\n";
+    }
+
     reset_and_sync_with_robot();
 
     // Initialize subscribers
@@ -581,17 +595,6 @@ void ClikNode::run_init() {
         "set_second_obj", &ClikNode::setSecondaryObj_srv_cb, this);
     serviceSetFixedJoints_ = nh_.advertiseService(
         "set_fixed_joints", &ClikNode::setFixedJoints_srv_cb, this);
-
-    if (b_use_realtime_) {
-
-      if (!check_realtime()) {
-        throw std::runtime_error("REALTIME NOT AVAILABLE");
-      }
-
-      if (!set_realtime_SCHED_FIFO()) {
-        throw std::runtime_error("ERROR IN set_realtime_SCHED_FIFO");
-      }
-    }
 
     loop_rate_ =
         std::unique_ptr<ros::Rate>(new ros::Rate(1.0 / clik_integrator_.Ts_));

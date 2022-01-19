@@ -96,13 +96,14 @@ void FkineNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
   }
 }
 
-void FkineNode::spinOnce(const ros::WallDuration& timeout) {
+void FkineNode::spinOnce(const ros::WallDuration &timeout) {
   callbk_queue_->callAvailable(timeout);
 }
 
 void FkineNode::spin() {
+  ros::WallDuration timeout(0.1f);
   while (ros::ok()) {
-    spinOnce(ros::WallDuration(0.1));
+    spinOnce(timeout);
   }
 }
 
@@ -140,11 +141,13 @@ void FkineNode::publishFkine(const TooN::Vector<> &qR) {
   pose_pub_.publish(out);
 }
 
-void FkineNode::publishVel(const TooN::Vector<> &qR, const TooN::Vector<> &qdotR) {
+void FkineNode::publishVel(const TooN::Vector<> &qR,
+                           const TooN::Vector<> &qdotR) {
 
   TooN::Matrix<4, 4> b_T_ee = robot_->fkine(robot_->joints_Robot2DH(qR));
 
-  TooN::Vector<6> vel = robot_->jacob_geometric(robot_->joints_Robot2DH(qR))*robot_->jointsvel_Robot2DH(qdotR);
+  TooN::Vector<6> vel = robot_->jacob_geometric(robot_->joints_Robot2DH(qR)) *
+                        robot_->jointsvel_Robot2DH(qdotR);
 
   geometry_msgs::TwistStampedPtr out(new geometry_msgs::TwistStamped);
 

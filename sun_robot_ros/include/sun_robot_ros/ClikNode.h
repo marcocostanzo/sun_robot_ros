@@ -33,10 +33,10 @@
 #include "ros/callback_queue.h"
 #include "sun_robot_msgs/CartesianStateStamped.h"
 #include "sun_robot_msgs/ClikGetState.h"
-#include "sun_robot_msgs/SetEndEffector.h"
 #include "sun_robot_msgs/ClikSetFixedJoints.h"
 #include "sun_robot_msgs/ClikSetMode.h"
 #include "sun_robot_msgs/ClikSetSecondaryObj.h"
+#include "sun_robot_msgs/SetEndEffector.h"
 
 namespace sun {
 class ClikNode {
@@ -99,7 +99,8 @@ public:
 
   ~ClikNode() = default;
 
-  void updateParams(const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
+  void
+  updateParams(const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
 
   /* Getters */
   // TooN::Vector<> get_qR();

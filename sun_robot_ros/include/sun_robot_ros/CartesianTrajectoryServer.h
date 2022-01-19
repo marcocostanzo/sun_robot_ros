@@ -78,6 +78,8 @@ public:
           nh_.advertise<geometry_msgs::TwistStamped>(twist_out_topic_str, 1);
     }
 
+    initRealTime();
+
     as_traj_ = std::unique_ptr<actionlib::SimpleActionServer<
         sun_robot_msgs::CartesianTrajectoryAction>>(
         new actionlib::SimpleActionServer<
@@ -85,7 +87,9 @@ public:
             nh_, action_name_str,
             boost::bind(&CartesianTrajectoryServer::traj_execute_cb, this, _1),
             false));
+  }
 
+  void initRealTime() {
     if (b_use_realtime_) {
 
       if (!check_realtime()) {
@@ -95,16 +99,22 @@ public:
       if (!set_realtime_SCHED_FIFO()) {
         throw std::runtime_error("ERROR IN set_realtime_SCHED_FIFO");
       }
+
+      std::cout << "[CARTESIAN TRAJ SERVER] REALTIME MODE SCHED_FIFO!\n";
     }
   }
 
   void start() { as_traj_->start(); }
 
-  void spinOnce() { callbackQueue_.callAvailable(ros::WallDuration(0.0)); }
+  void
+  spinOnce(const ros::WallDuration &wallDuration = ros::WallDuration(0.0)) {
+    callbackQueue_.callAvailable(wallDuration);
+  }
 
   void spin() {
+    ros::WallDuration timeout(0.1f);
     while (ros::ok()) {
-      spinOnce();
+      spinOnce(ros::WallDuration(timeout));
     }
   }
 
@@ -127,6 +137,8 @@ public:
 
   void
   traj_execute_cb(const sun_robot_msgs::CartesianTrajectoryGoalConstPtr &goal) {
+
+    initRealTime(); // this is a different thread
 
     ros::Time t0 = goal->trajectory.header.stamp;
     if (t0.toSec() == 0) {

@@ -70,6 +70,8 @@ public:
             "/debug/no_junction_traj", 1);
 #endif
 
+    initRealTime();
+
     as_traj_ = std::unique_ptr<
         actionlib::SimpleActionServer<sun_robot_msgs::JointTrajectoryAction>>(
         new actionlib::SimpleActionServer<
@@ -78,6 +80,9 @@ public:
             boost::bind(&JointTrajectoryServer::joint_traj_execute_cb, this,
                         _1),
             false));
+  }
+
+  void initRealTime() {
 
     if (b_use_realtime_) {
 
@@ -88,16 +93,22 @@ public:
       if (!set_realtime_SCHED_FIFO()) {
         throw std::runtime_error("ERROR IN set_realtime_SCHED_FIFO");
       }
+
+      std::cout << "[JOINT TRAJ SERVER] REALTIME MODE SCHED_FIFO!\n";
     }
   }
 
   void start() { as_traj_->start(); }
 
-  void spinOnce() { callbackQueue_.callAvailable(ros::WallDuration(0.0)); }
+  void
+  spinOnce(const ros::WallDuration &wallDuration = ros::WallDuration(0.0)) {
+    callbackQueue_.callAvailable(wallDuration);
+  }
 
   void spin() {
+    ros::WallDuration timeout(0.1f);
     while (ros::ok()) {
-      spinOnce();
+      spinOnce(timeout);
     }
   }
 
@@ -113,6 +124,9 @@ public:
 
   void joint_traj_execute_cb(
       const sun_robot_msgs::JointTrajectoryGoalConstPtr &goal) {
+
+    initRealTime(); // this is a different thread
+
     ros::Time t0 = goal->trajectory.header.stamp;
     if (t0.toSec() == 0) {
       t0 = ros::Time::now();
@@ -209,11 +223,22 @@ public:
 
         out_msg.header.stamp = ros::Time::now();
 
-        joint_state_pub_.publish(out_msg);
-        as_traj_->publishFeedback(feedbk);
+        {
+          sensor_msgs::JointStatePtr out_msg_ptr =
+              boost::make_shared<sensor_msgs::JointState>(out_msg);
+          sun_robot_msgs::JointTrajectoryFeedbackPtr feedbk_ptr =
+              boost::make_shared<sun_robot_msgs::JointTrajectoryFeedback>(
+                  feedbk);
+          joint_state_pub_.publish(out_msg_ptr);
+          as_traj_->publishFeedback(feedbk_ptr);
+
 #ifdef DBG
-        joint_state_no_exp_pub_.publish(last_state_no_junction);
+          sensor_msgs::JointStatePtr last_state_no_junction_ptr =
+              boost::make_shared<sensor_msgs::JointState>(
+                  last_state_no_junction);
+          joint_state_no_exp_pub_.publish(last_state_no_junction_ptr);
 #endif
+        }
         loop_rate.sleep();
       }
     }
@@ -256,18 +281,35 @@ public:
 
         out_msg.header.stamp = ros::Time::now();
 
-        joint_state_pub_.publish(out_msg);
-        as_traj_->publishFeedback(feedbk);
+        {
+          sensor_msgs::JointStatePtr out_msg_ptr =
+              boost::make_shared<sensor_msgs::JointState>(out_msg);
+          sun_robot_msgs::JointTrajectoryFeedbackPtr feedbk_ptr =
+              boost::make_shared<sun_robot_msgs::JointTrajectoryFeedback>(
+                  feedbk);
+          joint_state_pub_.publish(out_msg_ptr);
+          as_traj_->publishFeedback(feedbk_ptr);
+
 #ifdef DBG
-        joint_state_no_exp_pub.publish(last_state_no_junction);
+          sensor_msgs::JointStatePtr last_state_no_junction_ptr =
+              boost::make_shared<sensor_msgs::JointState>(
+                  last_state_no_junction);
+          joint_state_no_exp_pub_.publish(last_state_no_junction_ptr);
 #endif
+        }
+
         loop_rate.sleep();
       }
 
       if (ros::ok() && !as_traj_->isPreemptRequested()) {
         // At the end publish the last traj point
         last_state_no_junction.header.stamp = ros::Time::now();
-        joint_state_pub_.publish(last_state_no_junction);
+        {
+          sensor_msgs::JointStatePtr last_state_no_junction_ptr =
+              boost::make_shared<sensor_msgs::JointState>(
+                  last_state_no_junction);
+          joint_state_pub_.publish(last_state_no_junction_ptr);
+        }
       }
     }
 

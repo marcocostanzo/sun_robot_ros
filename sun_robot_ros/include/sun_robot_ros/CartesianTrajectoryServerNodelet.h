@@ -27,7 +27,7 @@ public:
     cartesianServerNode_ = std::unique_ptr<CartesianTrajectoryServerType>(
         new CartesianTrajectoryServerType(getNodeHandle(),
                                           getPrivateNodeHandle()));
-    
+
     running_ = true;
     nodeletThread_ = std::unique_ptr<std::thread>(
         new std::thread(std::bind(&CartesianTrajectoryServerNodeletBase<
@@ -37,10 +37,11 @@ public:
 
   /** Nodelet device poll thread main function. */
   void threadCB() {
+    ros::WallDuration timeout(0.1f);
     cartesianServerNode_->init();
     cartesianServerNode_->start();
     while (ros::ok() && running_) {
-      cartesianServerNode_->spinOnce();
+      cartesianServerNode_->spinOnce(timeout);
     }
   }
 };
