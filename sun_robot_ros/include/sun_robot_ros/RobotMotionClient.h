@@ -45,7 +45,7 @@ public:
 
   void goTo(const std::vector<double> &qf, double max_joint_mean_vel,
             const ros::Time &t0 = ros::Time::now(), bool wait = true,
-            const ros::Duration &min_duration = ros::Duration(0.1)) {
+            const ros::Duration &min_duration = ros::Duration(1.0)) {
     if (max_joint_mean_vel <= 0) {
       throw std::runtime_error("goTo - max_joint_mean_vel has to be positive");
     }
