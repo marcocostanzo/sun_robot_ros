@@ -16,6 +16,7 @@
 */
 
 #include "sun_robot_ros/ClikNode.h"
+#include "std_msgs/Float64MultiArray.h"
 #include "sun_robot_ros/check_realtime.h"
 
 namespace sun {
@@ -106,6 +107,8 @@ void ClikNode::updateParams(const ros::NodeHandle &nh_for_params) {
                       b_pub_cartesian_twist_control_, false);
 
   nh_for_params.param("pub_robot_fkine", b_publish_robot_fkine_, true);
+
+  nh_for_params.param("pub_robot_jacobian", b_publish_robot_jacobian_, false);
 
   {
     nh_for_params.param("rate", clik_integrator_.Ts_, 1000.0);
@@ -573,6 +576,10 @@ void ClikNode::run_init() {
     if (b_publish_robot_fkine_) {
       robot_fkine_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("fkine", 1);
     }
+    if (b_publish_robot_jacobian_) {
+      robot_jacob_pub_ =
+          nh_.advertise<std_msgs::Float64MultiArray>("jacobian", 1);
+    }
     if (b_pub_dbg_) {
       joi_state_pub_dbg_ =
           nh_.advertise<sensor_msgs::JointState>("dbg/command_joint_state", 1);
@@ -688,6 +695,31 @@ void ClikNode::run_single_step() {
       fkine_msg->pose.orientation.z = b_Q_e.getV()[2];
 
       robot_fkine_pub_.publish(fkine_msg);
+    }
+
+    if (b_publish_robot_jacobian_) {
+      auto jacob = clik_->robot_->jacob_geometric(
+          clik_->robot_->joints_Robot2DH(getJointPositionRobot(false)));
+
+      std_msgs::Float64MultiArrayPtr jacob_msg =
+          boost::make_shared<std_msgs::Float64MultiArray>();
+
+      auto jacob_size = jacob.num_cols() * jacob.num_rows();
+      jacob_msg->data.reserve(jacob_size);
+      memcpy(jacob_msg->data.data(), jacob.get_data_ptr(), jacob_size);
+
+      jacob_msg->layout.data_offset = 0.0;
+      jacob_msg->layout.dim.resize(2);
+      jacob_msg->layout.dim[0].label = "rows";
+      jacob_msg->layout.dim[0].size = jacob.num_rows();
+      jacob_msg->layout.dim[0].stride =
+          jacob.num_cols() *
+          jacob.num_rows(); // dim[0] stride is just the total size
+      jacob_msg->layout.dim[1].label = "cols";
+      jacob_msg->layout.dim[2].size = jacob.num_cols();
+      jacob_msg->layout.dim[3].stride = jacob.num_cols();
+
+      robot_jacob_pub_.publish(jacob_msg);
     }
 
     // Publish clik error norm

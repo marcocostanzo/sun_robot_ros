@@ -68,6 +68,8 @@ protected:
   ros::Publisher cartesian_twist_control_pub_;
   bool b_publish_robot_fkine_;
   ros::Publisher robot_fkine_pub_;
+  bool b_publish_robot_jacobian_;
+  ros::Publisher robot_jacob_pub_;
 
   ros::Subscriber desired_pose_sub_;
   ros::Subscriber desired_twist_sub_;
