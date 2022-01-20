@@ -705,8 +705,9 @@ void ClikNode::run_single_step() {
           boost::make_shared<std_msgs::Float64MultiArray>();
 
       auto jacob_size = jacob.num_cols() * jacob.num_rows();
-      jacob_msg->data.reserve(jacob_size);
-      memcpy(jacob_msg->data.data(), jacob.get_data_ptr(), jacob_size);
+      jacob_msg->data.resize(jacob_size);
+      memcpy(jacob_msg->data.data(), jacob.get_data_ptr(),
+             jacob_size * sizeof(double));
 
       jacob_msg->layout.data_offset = 0.0;
       jacob_msg->layout.dim.resize(2);
