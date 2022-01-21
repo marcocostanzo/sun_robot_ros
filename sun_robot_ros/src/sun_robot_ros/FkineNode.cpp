@@ -1,6 +1,7 @@
 
 
 #include "sun_robot_ros/FkineNode.h"
+#include "std_msgs/Float64MultiArray.h"
 
 namespace sun {
 
@@ -14,10 +15,13 @@ FkineNode::FkineNode(const std::shared_ptr<Robot> &robot,
                      const ros::NodeHandle &nh_for_topics,
                      const ros::NodeHandle &nh_for_parmas,
                      ros::CallbackQueue *callbk_queue)
-    : callbk_queue_(callbk_queue), robot_(robot), nh_(nh_for_topics) {
+    : callbk_queue_(callbk_queue), robot_(robot), nh_(nh_for_topics),
+      joints_updated_(false), joints_vel_updated_(false),
+      qDH_(TooN::Zeros(robot_->getNumJoints())),
+      qDH_dot_(TooN::Zeros(robot_->getNumJoints())),
+      jacob_geometric_(TooN::Zeros(6, robot_->getNumJoints())) {
 
   updateParams(nh_for_parmas);
-  ros::getGlobalCallbackQueue();
   nh_.setCallbackQueue(callbk_queue_);
 }
 
@@ -45,6 +49,14 @@ void FkineNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
 
   nh_for_parmas.param("out_pose", out_pose_topic_, std::string("ee_pose"));
   nh_for_parmas.param("out_twist", out_twist_topic_, std::string("ee_twist"));
+  nh_for_parmas.param("out_jacobian", out_jacob_topic_,
+                      std::string("jacobian"));
+
+  double rate;
+  nh_for_parmas.param("rate", rate, -1.0);
+  if (rate > 0.0) {
+    loop_rate_ = std::unique_ptr<ros::Rate>(new ros::Rate(rate));
+  }
 
   // n_T_e
   {
@@ -101,9 +113,17 @@ void FkineNode::spinOnce(const ros::WallDuration &timeout) {
 }
 
 void FkineNode::spin() {
-  ros::WallDuration timeout(0.1f);
-  while (ros::ok()) {
-    spinOnce(timeout);
+  if (loop_rate_) {
+    loop_rate_->reset();
+    while (ros::ok()) {
+      spinOnce();
+      loop_rate_->sleep();
+    }
+  } else {
+    ros::WallDuration timeout(0.1f);
+    while (ros::ok()) {
+      spinOnce(timeout);
+    }
   }
 }
 
@@ -113,12 +133,37 @@ void FkineNode::start() {
       "set_end_effector", &FkineNode::setEndEffector_srv_cb, this);
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(out_pose_topic_, 1);
   twist_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(out_twist_topic_, 1);
+  robot_jacob_pub_ =
+      nh_.advertise<std_msgs::Float64MultiArray>(out_jacob_topic_, 1);
   registerJointSubscriber();
 }
 
-void FkineNode::publishFkine(const TooN::Vector<> &qR) {
+void FkineNode::updateJoint(const TooN::Vector<> &qR) {
+  qDH_ = robot_->joints_Robot2DH(qR);
+  jacob_geometric_ = robot_->jacob_geometric(qDH_);
+  joints_updated_ = true;
+}
 
-  TooN::Matrix<4, 4> b_T_ee = robot_->fkine(robot_->joints_Robot2DH(qR));
+void FkineNode::updateJointVel(const TooN::Vector<> &qR_dot) {
+  qDH_dot_ = robot_->jointsvel_Robot2DH(qR_dot);
+  joints_vel_updated_ = true;
+}
+
+void FkineNode::publishAll() {
+  if (joints_updated_) {
+    publishFkine();
+    publishJacobian();
+  }
+  if (joints_updated_ || joints_vel_updated_) {
+    publishVel();
+  }
+  joints_updated_ = false;
+  joints_vel_updated_ = false;
+}
+
+void FkineNode::publishFkine() {
+
+  TooN::Matrix<4, 4> b_T_ee = robot_->fkine(qDH_);
 
   TooN::Vector<3> pos = transl(b_T_ee);
 
@@ -141,13 +186,9 @@ void FkineNode::publishFkine(const TooN::Vector<> &qR) {
   pose_pub_.publish(out);
 }
 
-void FkineNode::publishVel(const TooN::Vector<> &qR,
-                           const TooN::Vector<> &qdotR) {
+void FkineNode::publishVel() {
 
-  TooN::Matrix<4, 4> b_T_ee = robot_->fkine(robot_->joints_Robot2DH(qR));
-
-  TooN::Vector<6> vel = robot_->jacob_geometric(robot_->joints_Robot2DH(qR)) *
-                        robot_->jointsvel_Robot2DH(qdotR);
+  TooN::Vector<6> vel = jacob_geometric_ * qDH_dot_;
 
   geometry_msgs::TwistStampedPtr out(new geometry_msgs::TwistStamped);
 
@@ -161,6 +202,30 @@ void FkineNode::publishVel(const TooN::Vector<> &qR,
   out->twist.angular.z = vel[5];
 
   twist_pub_.publish(out);
+}
+
+void FkineNode::publishJacobian() {
+
+  std_msgs::Float64MultiArrayPtr jacob_msg =
+      boost::make_shared<std_msgs::Float64MultiArray>();
+
+  auto jacob_size = jacob_geometric_.num_cols() * jacob_geometric_.num_rows();
+  jacob_msg->data.resize(jacob_size);
+  memcpy(jacob_msg->data.data(), jacob_geometric_.get_data_ptr(),
+         jacob_size * sizeof(double));
+
+  jacob_msg->layout.data_offset = 0.0;
+  jacob_msg->layout.dim.resize(2);
+  jacob_msg->layout.dim[0].label = "rows";
+  jacob_msg->layout.dim[0].size = jacob_geometric_.num_rows();
+  jacob_msg->layout.dim[0].stride =
+      jacob_geometric_.num_cols() *
+      jacob_geometric_.num_rows(); // dim[0] stride is just the total size
+  jacob_msg->layout.dim[1].label = "cols";
+  jacob_msg->layout.dim[2].size = jacob_geometric_.num_cols();
+  jacob_msg->layout.dim[3].stride = jacob_geometric_.num_cols();
+
+  robot_jacob_pub_.publish(jacob_msg);
 }
 
 } // namespace sun

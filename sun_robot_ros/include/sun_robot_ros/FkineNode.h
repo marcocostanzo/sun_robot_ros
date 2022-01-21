@@ -14,6 +14,8 @@
 
 #include "sun_robot_msgs/SetEndEffector.h"
 
+#include <memory>
+
 namespace sun {
 
 class FkineNode {
@@ -23,12 +25,17 @@ protected:
   //! ROS
   ros::NodeHandle nh_;
   ros::CallbackQueue *callbk_queue_;
-  ros::Publisher pose_pub_, twist_pub_;
+  ros::Publisher pose_pub_, twist_pub_, robot_jacob_pub_;
   ros::ServiceServer serviceSetEndEffector_;
 
-  std::string out_pose_topic_, out_twist_topic_;
+  std::string out_pose_topic_, out_twist_topic_, out_jacob_topic_;
 
   sun::UnitQuaternion oldQuat; // continuity
+
+  TooN::Vector<> qDH_;
+  TooN::Vector<> qDH_dot_;
+  TooN::Matrix<6, TooN::Dynamic> jacob_geometric_;
+  bool joints_updated_, joints_vel_updated_;
 
   bool setEndEffector_srv_cb(sun_robot_msgs::SetEndEffector::Request &req,
                              sun_robot_msgs::SetEndEffector::Response &res);
@@ -36,9 +43,17 @@ protected:
   void
   updateParams(const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"));
 
-  void publishFkine(const TooN::Vector<> &qR);
+  void updateJoint(const TooN::Vector<> &qR);
 
-  void publishVel(const TooN::Vector<> &qR, const TooN::Vector<> &qdotR);
+  void updateJointVel(const TooN::Vector<> &qR_dot);
+
+  void publishAll();
+
+  void publishFkine();
+
+  void publishVel();
+
+  void publishJacobian();
 
   /**
    joint_sub_ = ...
@@ -46,12 +61,14 @@ protected:
   virtual void registerJointSubscriber() = 0;
 
 public:
+  std::unique_ptr<ros::Rate> loop_rate_;
+
   FkineNode(const std::shared_ptr<Robot> &robot,
             const ros::NodeHandle &nh_for_topics = ros::NodeHandle(),
             const ros::NodeHandle &nh_for_parmas = ros::NodeHandle("~"),
             ros::CallbackQueue *callbk_queue_ = ros::getGlobalCallbackQueue());
 
-  ~FkineNode() = default;
+  virtual ~FkineNode() = default;
 
   void spinOnce(const ros::WallDuration &timeout = ros::WallDuration(0.0));
 

@@ -36,10 +36,18 @@ public:
 
   /** Nodelet device poll thread main function. */
   void threadCB() {
-    ros::WallDuration timeout(0.1f);
     fkine_node_->start();
-    while (ros::ok() && running_) {
-      fkine_node_->spinOnce(timeout);
+    if (fkine_node_->loop_rate_) {
+      fkine_node_->loop_rate_->reset();
+      while (ros::ok() && running_) {
+        fkine_node_->spinOnce();
+        fkine_node_->loop_rate_->sleep();
+      }
+    } else {
+      ros::WallDuration timeout(0.1f);
+      while (ros::ok() && running_) {
+        fkine_node_->spinOnce(timeout);
+      }
     }
   }
 };
