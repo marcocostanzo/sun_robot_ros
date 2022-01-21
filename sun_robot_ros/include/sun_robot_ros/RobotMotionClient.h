@@ -20,6 +20,7 @@ private:
 public:
   ros::NodeHandle nh_;
   ClikClient clik_;
+  ros::ServiceClient sc_fkine_set_end_effector_;
   actionlib::SimpleActionClient<sun_robot_msgs::JointTrajectoryAction>
       ac_joint_trajectory_;
   actionlib::SimpleActionClient<sun_robot_msgs::CartesianTrajectoryAction>
@@ -33,7 +34,10 @@ public:
   RobotMotionClient(const ros::NodeHandle &nh)
       : nh_(nh), clik_(ros::NodeHandle(nh_, "clik")),
         ac_joint_trajectory_(nh_, "joint_traj_action", true),
-        ac_cartesian_trajectory_(nh_, "cartesian_traj_action", true) {}
+        ac_cartesian_trajectory_(nh_, "cartesian_traj_action", true) {
+    sc_fkine_set_end_effector_ =
+        nh_.serviceClient<sun_robot_msgs::SetEndEffector>("set_end_effector");
+  }
 
   ~RobotMotionClient() = default;
 
@@ -41,6 +45,7 @@ public:
     clik_.waitForServers();
     ac_joint_trajectory_.waitForServer();
     ac_cartesian_trajectory_.waitForServer();
+    sc_fkine_set_end_effector_.waitForExistence(ros::Duration(0.1));
   }
 
   void goTo(const std::vector<double> &qf, double max_joint_mean_vel,
@@ -253,6 +258,27 @@ public:
     b_pose_derired.orientation = tf2::toMsg(b_quat_desired);
 
     return goTo(b_pose_derired, duration, t0, wait);
+  }
+
+  //! n_pose_ee = end effector pose w.r.t. link n
+  void fkine_set_end_effector(const geometry_msgs::Pose &n_pose_ee) {
+    sun_robot_msgs::SetEndEffector msg;
+    msg.request.n_pose_ee = n_pose_ee;
+
+    bool success = sc_fkine_set_end_effector_.call(msg);
+    success = success && msg.response.success;
+    if (!success) {
+      throw std::runtime_error("RobotMotionClient: set_end_effector no success");
+    }
+  }
+
+  //! n_pose_ee = end effector pose w.r.t. link n
+  void set_end_effector(const geometry_msgs::Pose &n_pose_ee) {
+    sc_fkine_set_end_effector_.waitForExistence(ros::Duration(0.5));
+    if (sc_fkine_set_end_effector_.exists()) {
+      fkine_set_end_effector(n_pose_ee);
+    }
+    clik_.set_end_effector(n_pose_ee);
   }
 
   static void
