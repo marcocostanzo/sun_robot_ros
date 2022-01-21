@@ -31,6 +31,7 @@
 #include "sun_robot_ros/exceptions.h"
 
 #include "ros/callback_queue.h"
+#include "std_msgs/Float64MultiArray.h"
 #include "sun_robot_msgs/CartesianStateStamped.h"
 #include "sun_robot_msgs/ClikGetState.h"
 #include "sun_robot_msgs/ClikSetFixedJoints.h"

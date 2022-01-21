@@ -16,7 +16,6 @@
 */
 
 #include "sun_robot_ros/ClikNode.h"
-#include "std_msgs/Float64MultiArray.h"
 #include "sun_robot_ros/check_realtime.h"
 
 namespace sun {
@@ -575,10 +574,12 @@ void ClikNode::run_init() {
     }
     if (b_publish_robot_fkine_) {
       robot_fkine_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("fkine", 1);
+      std::cout << "[CLIK NODE] PUB FKINE!\n";
     }
     if (b_publish_robot_jacobian_) {
       robot_jacob_pub_ =
           nh_.advertise<std_msgs::Float64MultiArray>("jacobian", 1);
+      std::cout << "[CLIK NODE] PUB JACOBIAN!\n";
     }
     if (b_pub_dbg_) {
       joi_state_pub_dbg_ =
@@ -589,6 +590,7 @@ void ClikNode::run_init() {
           nh_.advertise<geometry_msgs::TwistStamped>("dbg/error", 1);
       pos_posdes_pub_dbg_ =
           nh_.advertise<geometry_msgs::TwistStamped>("dbg/pos_posdes", 1);
+      std::cout << "[CLIK NODE] PUB DBG!\n";
     }
 
     // Init Services
