@@ -160,7 +160,6 @@ public:
 
     sun_robot_msgs::JointTrajectoryFeedback feedbk;
     ros::Rate loop_rate(goal->sampling_freq);
-    ros::Time time_now = ros::Time::now();
     sensor_msgs::JointState last_state_no_junction = out_msg;
 
     for (int i = 1; i < goal->trajectory.points.size(); i++) {
@@ -193,9 +192,15 @@ public:
       //       > (7.0 * goal->junction_time_constant)))
       //       ||
       //        !goal->use_exponential_junction)))
+      ros::Time time_now = ros::Time::now();
       while (ros::ok() && !as_traj_->isPreemptRequested() &&
              !traj.isCompleate(time_now.toSec())) {
+
         time_now = ros::Time::now();
+        if (traj.isCompleate(time_now.toSec()) &&
+            i < (goal->trajectory.points.size() - 1)) {
+          break;
+        }
 
         TooN::Vector<> q = traj.getPosition(time_now.toSec());
         TooN::Vector<> dq = traj.getVelocity(time_now.toSec());
