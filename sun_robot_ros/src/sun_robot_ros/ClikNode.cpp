@@ -486,6 +486,10 @@ bool ClikNode::setEndEffector_srv_cb(
 
   reset_and_sync_with_robot();
 
+  ROS_INFO_STREAM(ros::this_node::getName()
+                  << " setEndEffector service ok! new matrix n_T_e:\n"
+                  << n_T_e);
+
   res.success = true;
 
   return true;
@@ -703,24 +707,31 @@ void ClikNode::run_single_step() {
       auto jacob = clik_->robot_->jacob_geometric(
           clik_->robot_->joints_Robot2DH(getJointPositionRobot(false)));
 
-      std_msgs::Float64MultiArrayPtr jacob_msg =
-          boost::make_shared<std_msgs::Float64MultiArray>();
+      // std_msgs::Float64MultiArrayPtr jacob_msg =
+      //     boost::make_shared<std_msgs::Float64MultiArray>();
+
+      std_msgs::Float64MultiArray jacob_msg;
 
       auto jacob_size = jacob.num_cols() * jacob.num_rows();
-      jacob_msg->data.resize(jacob_size);
-      memcpy(jacob_msg->data.data(), jacob.get_data_ptr(),
+      jacob_msg.data.resize(jacob_size);
+
+      // for (int i = 0; i < jacob_size; i++) {
+      //   jacob_msg.data[i] = jacob.get_data_ptr()[i];
+      // }
+
+      memcpy(jacob_msg.data.data(), jacob.get_data_ptr(),
              jacob_size * sizeof(double));
 
-      jacob_msg->layout.data_offset = 0.0;
-      jacob_msg->layout.dim.resize(2);
-      jacob_msg->layout.dim[0].label = "rows";
-      jacob_msg->layout.dim[0].size = jacob.num_rows();
-      jacob_msg->layout.dim[0].stride =
+      jacob_msg.layout.data_offset = 0.0;
+      jacob_msg.layout.dim.resize(2);
+      jacob_msg.layout.dim[0].label = "rows";
+      jacob_msg.layout.dim[0].size = jacob.num_rows();
+      jacob_msg.layout.dim[0].stride =
           jacob.num_cols() *
           jacob.num_rows(); // dim[0] stride is just the total size
-      jacob_msg->layout.dim[1].label = "cols";
-      jacob_msg->layout.dim[2].size = jacob.num_cols();
-      jacob_msg->layout.dim[3].stride = jacob.num_cols();
+      jacob_msg.layout.dim[1].label = "cols";
+      jacob_msg.layout.dim[1].size = jacob.num_cols();
+      jacob_msg.layout.dim[1].stride = jacob.num_cols();
 
       robot_jacob_pub_.publish(jacob_msg);
     }
@@ -832,6 +843,8 @@ void ClikNode::desiredPoseTwist_cb(
                        TooN::makeVector(pose_twist_msg->pose.orientation.x,
                                         pose_twist_msg->pose.orientation.y,
                                         pose_twist_msg->pose.orientation.z));
+    clik_->desiredQuaternion_ = UnitQuaternion(clik_->desiredQuaternion_,
+                                               clik_->getCurrentQuaternion());
   }
   if (mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_POSITION ||
       mode_ == sun_robot_msgs::ClikSetMode::RequestType::MODE_VELOCITY) {
@@ -871,6 +884,9 @@ void ClikNode::desiredPose_cb(
                        TooN::makeVector(pose_msg->pose.orientation.x,
                                         pose_msg->pose.orientation.y,
                                         pose_msg->pose.orientation.z));
+
+    clik_->desiredQuaternion_ = UnitQuaternion(clik_->desiredQuaternion_,
+                                               clik_->getCurrentQuaternion());
   }
 }
 

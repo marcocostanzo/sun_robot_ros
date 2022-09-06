@@ -205,6 +205,7 @@ void FkineNode::publishVel() {
 }
 
 void FkineNode::publishJacobian() {
+  // return;
 
   std_msgs::Float64MultiArrayPtr jacob_msg =
       boost::make_shared<std_msgs::Float64MultiArray>();
@@ -222,8 +223,8 @@ void FkineNode::publishJacobian() {
       jacob_geometric_.num_cols() *
       jacob_geometric_.num_rows(); // dim[0] stride is just the total size
   jacob_msg->layout.dim[1].label = "cols";
-  jacob_msg->layout.dim[2].size = jacob_geometric_.num_cols();
-  jacob_msg->layout.dim[3].stride = jacob_geometric_.num_cols();
+  jacob_msg->layout.dim[1].size = jacob_geometric_.num_cols();
+  jacob_msg->layout.dim[1].stride = jacob_geometric_.num_cols();
 
   robot_jacob_pub_.publish(jacob_msg);
 }
