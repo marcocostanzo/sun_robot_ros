@@ -45,7 +45,10 @@ public:
     clik_.waitForServers();
     ac_joint_trajectory_.waitForServer();
     ac_cartesian_trajectory_.waitForServer();
-    sc_fkine_set_end_effector_.waitForExistence(ros::Duration(0.1));
+    if(!sc_fkine_set_end_effector_.waitForExistence(ros::Duration(0.1)))
+    {
+      ROS_WARN_STREAM("SERVICE CLIENT FKINE SET END EFFECTOR NOT FOUND");
+    }
   }
 
   void goTo(const std::vector<double> &qf, double max_joint_mean_vel,
@@ -65,6 +68,9 @@ public:
       }
     }
     ros::Duration duration(max_distance / max_joint_mean_vel);
+    std::cout << "goTo DURATION " << duration << "\n";
+    std::cout << "goTo max_distance " << max_distance << "\n";
+    std::cout << "goTo max_joint_mean_vel " << max_joint_mean_vel << "\n";
     if (duration <= min_duration) {
       duration = min_duration;
     }
@@ -262,22 +268,26 @@ public:
 
   //! n_pose_ee = end effector pose w.r.t. link n
   void fkine_set_end_effector(const geometry_msgs::Pose &n_pose_ee) {
+    ROS_INFO_STREAM("fkine_set_end_effector\n"<<n_pose_ee);
     sun_robot_msgs::SetEndEffector msg;
     msg.request.n_pose_ee = n_pose_ee;
 
     bool success = sc_fkine_set_end_effector_.call(msg);
     success = success && msg.response.success;
     if (!success) {
-      throw std::runtime_error("RobotMotionClient: set_end_effector no success");
+      throw std::runtime_error(
+          "RobotMotionClient: set_end_effector no success");
     }
   }
 
   //! n_pose_ee = end effector pose w.r.t. link n
   void set_end_effector(const geometry_msgs::Pose &n_pose_ee) {
     sc_fkine_set_end_effector_.waitForExistence(ros::Duration(0.5));
-    if (sc_fkine_set_end_effector_.exists()) {
+    // if (sc_fkine_set_end_effector_.exists()) {
+      ROS_WARN_STREAM("sc_fkine_set_end_effector_ CALL");
       fkine_set_end_effector(n_pose_ee);
-    }
+    // }
+    // ROS_WARN_STREAM("sc_fkine_set_end_effector_ OK exists");
     clik_.set_end_effector(n_pose_ee);
   }
 
