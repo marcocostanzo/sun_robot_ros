@@ -49,8 +49,13 @@ void FkineNode::updateParams(const ros::NodeHandle &nh_for_parmas) {
 
   nh_for_parmas.param("out_pose", out_pose_topic_, std::string("ee_pose"));
   nh_for_parmas.param("out_twist", out_twist_topic_, std::string("ee_twist"));
+  nh_for_parmas.param("out_ee_twist", out_ee_twist_topic_,
+                      std::string("ee_twist_body"));
   nh_for_parmas.param("out_jacobian", out_jacob_topic_,
                       std::string("jacobian"));
+
+  nh_for_parmas.param("base_frame_id", base_frame_id_, std::string("robot_base"));
+  nh_for_parmas.param("ee_frame_id", ee_frame_id_, std::string("robot_ee"));
 
   double rate;
   nh_for_parmas.param("rate", rate, -1.0);
@@ -133,6 +138,8 @@ void FkineNode::start() {
       "set_end_effector", &FkineNode::setEndEffector_srv_cb, this);
   pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(out_pose_topic_, 1);
   twist_pub_ = nh_.advertise<geometry_msgs::TwistStamped>(out_twist_topic_, 1);
+  ee_twist_pub_ =
+      nh_.advertise<geometry_msgs::TwistStamped>(out_ee_twist_topic_, 1);
   robot_jacob_pub_ =
       nh_.advertise<std_msgs::Float64MultiArray>(out_jacob_topic_, 1);
   registerJointSubscriber();
@@ -174,6 +181,7 @@ void FkineNode::publishFkine() {
   geometry_msgs::PoseStampedPtr out(new geometry_msgs::PoseStamped);
 
   out->header.stamp = ros::Time::now();
+  out->header.frame_id = base_frame_id_;
 
   out->pose.position.x = pos[0];
   out->pose.position.y = pos[1];
@@ -190,18 +198,40 @@ void FkineNode::publishVel() {
 
   TooN::Vector<6> vel = jacob_geometric_ * qDH_dot_;
 
-  geometry_msgs::TwistStampedPtr out(new geometry_msgs::TwistStamped);
+  TooN::Matrix<4, 4> b_T_ee = robot_->fkine(qDH_);
 
-  out->header.stamp = ros::Time::now();
+  TooN::Matrix<3, 3> ee_R_b = b_T_ee.slice<0, 0, 3, 3>().T();
 
-  out->twist.linear.x = vel[0];
-  out->twist.linear.y = vel[1];
-  out->twist.linear.z = vel[2];
-  out->twist.angular.x = vel[3];
-  out->twist.angular.y = vel[4];
-  out->twist.angular.z = vel[5];
+  TooN::Vector<3> ee_trans_vel = ee_R_b * vel.slice<0, 3>();
+  TooN::Vector<3> ee_ang_vel = ee_R_b * vel.slice<3, 3>();
 
-  twist_pub_.publish(out);
+  geometry_msgs::TwistStampedPtr out_vel(new geometry_msgs::TwistStamped);
+
+  out_vel->header.stamp = ros::Time::now();
+  out_vel->header.frame_id = base_frame_id_;
+
+  out_vel->twist.linear.x = vel[0];
+  out_vel->twist.linear.y = vel[1];
+  out_vel->twist.linear.z = vel[2];
+  out_vel->twist.angular.x = vel[3];
+  out_vel->twist.angular.y = vel[4];
+  out_vel->twist.angular.z = vel[5];
+
+  geometry_msgs::TwistStampedPtr out_ee_vel(new geometry_msgs::TwistStamped);
+
+  out_ee_vel->header.stamp = ros::Time::now();
+  out_ee_vel->header.frame_id = ee_frame_id_;
+
+  out_ee_vel->twist.linear.x = ee_trans_vel[0];
+  out_ee_vel->twist.linear.y = ee_trans_vel[1];
+  out_ee_vel->twist.linear.z = ee_trans_vel[2];
+  out_ee_vel->twist.angular.x = ee_ang_vel[0];
+  out_ee_vel->twist.angular.y = ee_ang_vel[1];
+  out_ee_vel->twist.angular.z = ee_ang_vel[2];
+
+  twist_pub_.publish(out_vel);
+
+  ee_twist_pub_.publish(out_ee_vel);
 }
 
 void FkineNode::publishJacobian() {

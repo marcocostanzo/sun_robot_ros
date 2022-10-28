@@ -276,7 +276,7 @@ void ClikNode::reset_and_sync_with_robot() {
   ROS_INFO_STREAM(ros::this_node::getName()
                   << " CLIK Wait for joint positions...");
   clik_integrator_.setJointsDH(
-      clik_->robot_->joints_Robot2DH(getJointPositionRobot()));
+      clik_->robot_->joints_Robot2DH(getJointPositionRobot(true)));
   clik_integrator_.resetJointsVelDH();
   ROS_INFO_STREAM(ros::this_node::getName() << " CLIK Joint positions: "
                                             << clik_integrator_.getJointsDH());
@@ -682,6 +682,7 @@ void ClikNode::run_single_step() {
 
     if (b_pub_cartesian_twist_control_) {
       cartesian_twist_control_msg->header.stamp = ros::Time::now();
+      cartesian_twist_control_msg->header.frame_id = ros_base_frame_id_;
       cartesian_twist_control_pub_.publish(cartesian_twist_control_msg);
     }
 
@@ -692,6 +693,8 @@ void ClikNode::run_single_step() {
       auto b_p_e = sun::transl(b_T_e);
       geometry_msgs::PoseStampedPtr fkine_msg(new geometry_msgs::PoseStamped);
       fkine_msg->header.stamp = ros::Time::now();
+      fkine_msg->header.frame_id = ros_base_frame_id_;
+
       fkine_msg->pose.position.x = b_p_e[0];
       fkine_msg->pose.position.y = b_p_e[1];
       fkine_msg->pose.position.z = b_p_e[2];
@@ -740,6 +743,8 @@ void ClikNode::run_single_step() {
     sun_ros_msgs::Float64StampedPtr cartesian_error_msg(
         new sun_ros_msgs::Float64Stamped);
     cartesian_error_msg->header.stamp = ros::Time::now();
+    cartesian_error_msg->header.frame_id = ros_base_frame_id_;
+
     cartesian_error_msg->data =
         norm(clik_->getClikError(clik_integrator_.getJointsDH()));
     cartesian_error_pub_.publish(cartesian_error_msg);
@@ -775,6 +780,7 @@ void ClikNode::pub_dbg() {
   }
   geometry_msgs::TwistStampedPtr twist_msg(new geometry_msgs::TwistStamped);
   twist_msg->header.stamp = time_now;
+  twist_msg->header.frame_id = ros_base_frame_id_;
   twist_msg->twist.linear.x = x_dot[0];
   twist_msg->twist.linear.y = x_dot[1];
   twist_msg->twist.linear.z = x_dot[2];
@@ -786,6 +792,7 @@ void ClikNode::pub_dbg() {
       clik_->getClikError(clik_integrator_.getJointsDH());
   geometry_msgs::TwistStampedPtr clikError_msg(new geometry_msgs::TwistStamped);
   clikError_msg->header.stamp = time_now;
+  clikError_msg->header.frame_id = ros_base_frame_id_;
   clikError_msg->twist.linear.x = clikError[0];
   clikError_msg->twist.linear.y = clikError[1];
   clikError_msg->twist.linear.z = clikError[2];
@@ -799,6 +806,7 @@ void ClikNode::pub_dbg() {
       clik_->robot_->fkine(clik_integrator_.getJointsDH()).T()[3].slice<0, 3>();
   TooN::Vector<3> desiredPosition = clik_->desiredPosition_;
   pos_posdes_msg->header.stamp = time_now;
+  pos_posdes_msg->header.frame_id = ros_base_frame_id_;
   pos_posdes_msg->twist.linear.x = position[0];
   pos_posdes_msg->twist.linear.y = position[1];
   pos_posdes_msg->twist.linear.z = position[2];

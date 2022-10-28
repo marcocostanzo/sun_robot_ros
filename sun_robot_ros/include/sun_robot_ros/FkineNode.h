@@ -25,10 +25,13 @@ protected:
   //! ROS
   ros::NodeHandle nh_;
   ros::CallbackQueue *callbk_queue_;
-  ros::Publisher pose_pub_, twist_pub_, robot_jacob_pub_;
+  ros::Publisher pose_pub_, twist_pub_, robot_jacob_pub_, ee_twist_pub_;
   ros::ServiceServer serviceSetEndEffector_;
 
-  std::string out_pose_topic_, out_twist_topic_, out_jacob_topic_;
+  std::string out_pose_topic_, out_twist_topic_, out_jacob_topic_,
+      out_ee_twist_topic_;
+
+  std::string base_frame_id_, ee_frame_id_;
 
   sun::UnitQuaternion oldQuat; // continuity
 
