@@ -12,6 +12,7 @@
 #include "sun_traj_lib/Line_Segment_Traj.h"
 #include "sun_traj_lib/Quintic_Poly_Traj.h"
 #include "sun_traj_lib/Rotation_Const_Axis_Traj.h"
+#include "sun_traj_lib/Trapez_Traj.h"
 
 #include "ros/callback_queue.h"
 #include "sun_robot_msgs/CartesianStateStamped.h"
@@ -215,6 +216,34 @@ public:
       double next_acceleration_angular = projectOnAxis(
           toTooN(traj_point_next.acceleration.angular), Delta_angvec.getVec());
 
+      std::unique_ptr<sun::Scalar_Traj_Interface> scalar_linear_traj;
+      std::unique_ptr<sun::Scalar_Traj_Interface> scalar_rot_traj;
+      if (!goal->use_trapez) {
+        scalar_linear_traj =
+            std::unique_ptr<sun::Quintic_Poly_Traj>(new sun::Quintic_Poly_Traj(
+                prev_next_duration.toSec(), 0.0, 1.0,
+                (t0 + traj_point_prev.time_from_start).toSec(),
+                prev_velocity_linear, next_velocity_linear,
+                prev_acceleration_linear, next_acceleration_linear));
+        scalar_rot_traj =
+            std::unique_ptr<sun::Quintic_Poly_Traj>(new sun::Quintic_Poly_Traj(
+                prev_next_duration.toSec(), 0.0, Delta_angvec.getAng(),
+                (t0 + traj_point_prev.time_from_start).toSec(),
+                prev_velocity_angular, next_velocity_angular,
+                prec_acceleration_angular, next_acceleration_angular));
+      } else {
+        scalar_linear_traj =
+            std::unique_ptr<sun::Trapez_Traj>(new sun::Trapez_Traj(
+                prev_next_duration.toSec(), 0.0, 1.0, prev_velocity_linear,
+                (t0 + traj_point_prev.time_from_start).toSec()));
+
+        scalar_rot_traj =
+            std::unique_ptr<sun::Trapez_Traj>(new sun::Trapez_Traj(
+                prev_next_duration.toSec(), 0.0, Delta_angvec.getAng(),
+                prev_velocity_angular,
+                (t0 + traj_point_prev.time_from_start).toSec()));
+      }
+
       sun::Cartesian_Independent_Traj traj(
           sun::Line_Segment_Traj(
               TooN::makeVector(traj_point_prev.pose.position.x,
@@ -223,18 +252,9 @@ public:
               TooN::makeVector(traj_point_next.pose.position.x,
                                traj_point_next.pose.position.y,
                                traj_point_next.pose.position.z),
-              sun::Quintic_Poly_Traj(
-                  prev_next_duration.toSec(), 0.0, 1.0,
-                  (t0 + traj_point_prev.time_from_start).toSec(),
-                  prev_velocity_linear, next_velocity_linear,
-                  prev_acceleration_linear, next_acceleration_linear)),
-          sun::Rotation_Const_Axis_Traj(
-              quat_prev, Delta_angvec.getVec(),
-              sun::Quintic_Poly_Traj(
-                  prev_next_duration.toSec(), 0.0, Delta_angvec.getAng(),
-                  (t0 + traj_point_prev.time_from_start).toSec(),
-                  prev_velocity_angular, next_velocity_angular,
-                  prec_acceleration_angular, next_acceleration_angular)));
+              *scalar_linear_traj),
+          sun::Rotation_Const_Axis_Traj(quat_prev, Delta_angvec.getVec(),
+                                        *scalar_rot_traj));
 
       while (ros::ok() && !traj.isCompleate(time_now.toSec()) &&
              !as_traj_->isPreemptRequested()) {
