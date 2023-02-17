@@ -202,9 +202,9 @@ public:
       geometry_msgs::Vector3 lin_direction;
       {
         tf2::Vector3 lin_direction_tf(
-            clik_state.ee_pose.pose.position.x - desired_pose.position.x,
-            clik_state.ee_pose.pose.position.y - desired_pose.position.y,
-            clik_state.ee_pose.pose.position.z - desired_pose.position.z);
+            desired_pose.position.x - clik_state.ee_pose.pose.position.x,
+            desired_pose.position.y - clik_state.ee_pose.pose.position.y,
+            desired_pose.position.z - clik_state.ee_pose.pose.position.z);
         lin_direction_tf.normalize();
         lin_direction_tf = lin_direction_tf * trapez_lin_vel;
         lin_direction.x = lin_direction_tf.x();
