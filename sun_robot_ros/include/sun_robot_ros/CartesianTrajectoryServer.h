@@ -196,17 +196,34 @@ public:
 
       // velocities and acceleration are simply projected on the direction axes
       // between i-1 and i
+      bool lin_is_zero = false;
+      double lin_vel_normalization =
+          TooN::norm((toTooN(traj_point_next.pose.position) -
+                      toTooN(traj_point_prev.pose.position)));
+      if (lin_vel_normalization <
+          10.0 * std::numeric_limits<double>::epsilon()) {
+        lin_vel_normalization = 1.0;
+        lin_is_zero = true;
+      }
       TooN::Vector<3> linearDirectionAxis =
           toTooN(traj_point_next.pose.position) -
           toTooN(traj_point_prev.pose.position);
-      double prev_velocity_linear = projectOnAxis(
-          toTooN(traj_point_prev.velocity.linear), linearDirectionAxis);
-      double next_velocity_linear = projectOnAxis(
-          toTooN(traj_point_next.velocity.linear), linearDirectionAxis);
-      double prev_acceleration_linear = projectOnAxis(
-          toTooN(traj_point_prev.acceleration.linear), linearDirectionAxis);
-      double next_acceleration_linear = projectOnAxis(
-          toTooN(traj_point_next.acceleration.linear), linearDirectionAxis);
+      double prev_velocity_linear =
+          projectOnAxis(toTooN(traj_point_prev.velocity.linear),
+                        linearDirectionAxis) /
+          lin_vel_normalization;
+      double next_velocity_linear =
+          projectOnAxis(toTooN(traj_point_next.velocity.linear),
+                        linearDirectionAxis) /
+          lin_vel_normalization;
+      double prev_acceleration_linear =
+          projectOnAxis(toTooN(traj_point_prev.acceleration.linear),
+                        linearDirectionAxis) /
+          lin_vel_normalization;
+      double next_acceleration_linear =
+          projectOnAxis(toTooN(traj_point_next.acceleration.linear),
+                        linearDirectionAxis) /
+          lin_vel_normalization;
       double prev_velocity_angular = projectOnAxis(
           toTooN(traj_point_prev.velocity.angular), Delta_angvec.getVec());
       double next_velocity_angular = projectOnAxis(
@@ -232,9 +249,14 @@ public:
                 prev_velocity_angular, next_velocity_angular,
                 prec_acceleration_angular, next_acceleration_angular));
       } else {
+        double final_point = 1.0;
+        if (lin_is_zero) {
+          final_point = 0.0;
+        }
         scalar_linear_traj =
             std::unique_ptr<sun::Trapez_Traj>(new sun::Trapez_Traj(
-                prev_next_duration.toSec(), 0.0, 1.0, prev_velocity_linear,
+                prev_next_duration.toSec(), 0.0, final_point,
+                prev_velocity_linear,
                 (t0 + traj_point_prev.time_from_start).toSec()));
 
         scalar_rot_traj =
