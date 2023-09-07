@@ -1,0 +1,117 @@
+<launch>
+
+    <arg name="joint_state_command_topic" default="command/joint_state" />
+
+    <arg name="namespace" default="robot" />
+
+    <arg name="base_frame_id" default="link_0" />
+
+    <arg name="ee_frame_id" default="link_ee" />
+
+    <arg name="use_realtime" default="false" />
+
+    <arg name="nodelet_name" default="robot_nodelet" />
+
+    <arg name="bringup_nodelet_manager" default="true" />
+
+    <arg name="clik_pub_robot_jacobian" default="false" />
+
+    <!-- <arg name="fkine_rate" default="-1.0" /> -->
+
+    <arg name="bringup_joint_traj_server" default="true" />
+
+    <arg name="bringup_cartesian_traj_server" default="true" />
+
+    <!-- <arg name="bringup_fkine_server" default="false" /> -->
+
+    <arg name="bringup_clik_server" default="true" />
+
+    <arg name="clik_error_gain" default="0.5" />
+
+    <arg name="dls_joint_speed_saturation" default="3.0" />
+
+    <arg name="second_obj_gain" default="0.0" />
+
+    <arg name="joint_target_robot" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" />
+
+    <arg name="joint_weights" default="[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]" />
+
+    <arg name="n_T_e_position" default="[0.0, 0.0, 0.0]" />
+    <arg name="n_T_e_quaternion" default="[1.0, 0.0, 0.0, 0.0]" />
+
+    <arg name="rate" default="500.0" />
+
+    <node if="$(arg bringup_nodelet_manager)" pkg="nodelet" type="nodelet" name="$(arg nodelet_name)" args="manager" output="screen" />
+
+    <!-- Traj Server -->
+    <node if="$(arg bringup_joint_traj_server)" ns="$(arg namespace)" pkg="nodelet" type="nodelet" name="joint_trajectory_server" args="load sun_robot_ros/JointTrajectoryServerNodelet /$(arg nodelet_name)" output="screen">
+        <param name="traj_out_topic" value="$(arg joint_state_command_topic)" />
+        <param name="action_name" value="joint_traj_action" />
+        <param name="use_realtime" value="$(arg use_realtime)" />
+    </node>
+
+    <!-- Cart Traj -->
+    <node if="$(arg bringup_cartesian_traj_server)" ns="$(arg namespace)" pkg="nodelet" type="nodelet" name="cartesian_traj_nodelet" args="load sun_robot_ros/CartesianTrajectoryServerNodelet /$(arg nodelet_name)" output="screen">
+        <param name="publish_on_pose_twist" value="true" />
+
+        <param name="pose_twist_out_topic" value="clik/desired_pose_twist" />
+
+        <param name="pose_out_topic" value="clik/desired_pose" />
+        <param name="twist_out_topic" value="clik/desired_twist" />
+
+        <param name="action_name" value="cartesian_traj_action" />
+        <param name="use_realtime" value="$(arg use_realtime)" />
+    </node>
+
+    <!-- <node if="$(arg bringup_fkine_server)" ns="$(arg namespace)" pkg="nodelet" type="nodelet" name="fkine" args="load sun_robot_nodes/ROBOT_FkineNodelet /$(arg nodelet_name)" output="screen">
+        <param name="rate" value="$(arg fkine_rate)" />
+        <param name="base_frame_id" value="$(arg base_frame_id)" />
+        <param name="ee_frame_id" value="$(arg ee_frame_id)" />
+    </node> -->
+
+    <!-- CLik -->
+    <node if="$(arg bringup_clik_server)" ns="$(arg namespace)/clik" pkg="nodelet" type="nodelet" name="clik" args="load sun_ROBOT_nodes/ROBOT_ClikNodelet /$(arg nodelet_name)" output="screen">
+
+        <param name="use_realtime" value="$(arg use_realtime)" />
+
+        <param name="pub_robot_jacobian" value="$(arg clik_pub_robot_jacobian)" />
+
+        <param name="pub_dbg" value="false" />
+
+        <param name="pub_cartesian_twist_control" value="true" />
+
+        <param name="ros_base_frame_id" value="$(arg base_frame_id)" />
+
+        <!-- MOD HERE! -->
+        <rosparam param="ros_joint_names" subst_value="true">[
+                                             "joint_1",       "joint_2",
+                                             "joint_3",       "joint_4",
+                                             "joint_5",       "joint_6",
+                                             "joint_7"
+                                             ]</rosparam>
+
+        <param name="error_gain" value="$(arg clik_error_gain)" />
+
+        <param name="rate" value="$(arg rate)" />
+
+        <param name="dls_joint_speed_saturation" value="$(arg dls_joint_speed_saturation)" />
+
+        <param name="second_obj_gain" value="$(arg second_obj_gain)" />
+
+
+        <rosparam param="joint_target_robot_second_obj" subst_value="true">$(arg joint_target_robot)</rosparam>
+
+
+        <rosparam param="joint_weights_second_obj" subst_value="true">$(arg joint_weights)</rosparam>
+
+        <!--
+        <rosparam param="mask_cartesian" subst_value="true">$(arg mask_cartesian)</rosparam>
+    -->
+
+        <rosparam param="n_T_e_position" subst_value="true">$(arg n_T_e_position)</rosparam>
+        <rosparam param="n_T_e_quaternion" subst_value="true">$(arg n_T_e_quaternion)</rosparam>
+
+    </node>
+
+
+</launch>
